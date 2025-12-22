@@ -1,0 +1,135 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.38.1.
+--
+-- see: https://github.com/sol/hpack
+
+name:           hledger-api
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/githubuser/hledger-api#readme>
+homepage:       https://github.com/githubuser/hledger-api#readme
+bug-reports:    https://github.com/githubuser/hledger-api/issues
+author:         Author name here
+maintainer:     example@example.com
+copyright:      2025 Author name here
+license:        BSD-3-Clause
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/githubuser/hledger-api
+
+library
+  exposed-modules:
+      Api
+      Api.Accounts
+      Api.Reports
+      Api.Swagger
+      Api.Transactions
+      Api.Types
+      App
+      Journal
+      Lib
+  other-modules:
+      Paths_hledger_api
+  autogen-modules:
+      Paths_hledger_api
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  build-depends:
+      aeson >=2.0
+    , base >=4.7 && <5
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , hledger-lib >=1.43
+    , insert-ordered-containers
+    , lens
+    , mtl
+    , openapi3 >=3.2
+    , optparse-applicative >=0.18
+    , scientific
+    , servant >=0.20
+    , servant-openapi3 >=2.0
+    , servant-server >=0.20
+    , text
+    , time
+    , transformers
+    , wai >=3.2
+    , warp >=3.3
+  default-language: Haskell2010
+
+executable hledger-api-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_hledger_api
+  autogen-modules:
+      Paths_hledger_api
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      aeson >=2.0
+    , base >=4.7 && <5
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , hledger-api
+    , hledger-lib >=1.43
+    , insert-ordered-containers
+    , lens
+    , mtl
+    , openapi3 >=3.2
+    , optparse-applicative >=0.18
+    , scientific
+    , servant >=0.20
+    , servant-openapi3 >=2.0
+    , servant-server >=0.20
+    , text
+    , time
+    , transformers
+    , wai >=3.2
+    , warp >=3.3
+  default-language: Haskell2010
+
+test-suite hledger-api-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_hledger_api
+  autogen-modules:
+      Paths_hledger_api
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      aeson >=2.0
+    , base >=4.7 && <5
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , hledger-api
+    , hledger-lib >=1.43
+    , insert-ordered-containers
+    , lens
+    , mtl
+    , openapi3 >=3.2
+    , optparse-applicative >=0.18
+    , scientific
+    , servant >=0.20
+    , servant-openapi3 >=2.0
+    , servant-server >=0.20
+    , text
+    , time
+    , transformers
+    , wai >=3.2
+    , warp >=3.3
+  default-language: Haskell2010
