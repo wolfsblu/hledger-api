@@ -22,7 +22,7 @@ apiSwagger = toOpenApi (Proxy :: Proxy CoreAPI)
   & info . title .~ "hledger API"
   & info . version .~ "0.1.0"
   & info . description ?~ "REST API for hledger journal access"
-  & info . license ?~ ("BSD-3-Clause" & url ?~ URL "https://opensource.org/licenses/BSD-3-Clause")
+  & info . license ?~ ("AGPL-3.0" & url ?~ URL "https://opensource.org/license/agpl-v3")
 
 -- ToSchema instances for API types
 
