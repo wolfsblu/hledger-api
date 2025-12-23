@@ -5,21 +5,18 @@ module Api.Accounts
   ) where
 
 import Control.Monad.IO.Class (liftIO)
-import Data.List (find, sortOn)
-import Data.Maybe (fromMaybe, mapMaybe)
-import Data.Scientific (Scientific)
+import Data.List (sortOn)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Time (Day, UTCTime(..), getCurrentTime)
 import Servant
 import Servant.Server.Generic (AsServerT)
 
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
 import qualified Hledger as H
 
 import Api (AccountsAPI(..))
+import Api.Convert
 import Api.Types
 import App (AppM, getJournal)
 
@@ -34,7 +31,7 @@ accountsHandlers = AccountsAPI
 
 -- | List all accounts
 handleListAccounts :: Maybe Int -> Maybe Text -> AppM [AccountInfo]
-handleListAccounts mDepth mType = do
+handleListAccounts mDepth _mType = do
   journal <- getJournal
   let accts = H.journalAccountNames journal
       maxDepth = fromMaybe 9999 mDepth
@@ -70,12 +67,10 @@ handleGetAccount name = do
 
 -- | Get account balance over time
 handleGetAccountBalance :: Text -> Maybe Day -> Maybe Day -> AppM BalanceReport
-handleGetAccountBalance name mFrom mTo = do
+handleGetAccountBalance name _mFrom _mTo = do
   journal <- getJournal
   today <- liftIO $ utctDay <$> getCurrentTime
-  let journalStart = fromMaybe today (H.journalStartDate False journal)
-      fromDate = fromMaybe journalStart mFrom
-      toDate = fromMaybe today mTo
+  let toDate = today
       ledger = H.ledgerFromJournal H.Any journal
       totalBalance = ledgerAccountBalance ledger name
   -- For now, return just the current total balance
@@ -164,21 +159,3 @@ runningBalances acct txns =
       filter (\p -> H.paccount p == acc || T.isPrefixOf (acc <> T.pack ":") (H.paccount p))
              (H.tpostings txn)
 
--- | Get the balance of an account in a ledger
-ledgerAccountBalance :: H.Ledger -> H.AccountName -> H.MixedAmount
-ledgerAccountBalance ledger name =
-  case find (\acct -> H.aname acct == name) (H.laccounts ledger) of
-    Just acct -> H.aibalance acct
-    Nothing   -> mempty
-
--- | Convert MixedAmount to JSON format
-mixedAmountToJSON :: H.MixedAmount -> MixedAmountJSON
-mixedAmountToJSON ma =
-  MixedAmountJSON $ map amountToJSON $ H.amounts ma
-
--- | Convert Amount to JSON format
-amountToJSON :: H.Amount -> AmountJSON
-amountToJSON a = AmountJSON
-  { amountQuantity  = fromRational (toRational (H.aquantity a))
-  , amountCommodity = H.acommodity a
-  }

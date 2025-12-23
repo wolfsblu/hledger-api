@@ -10,8 +10,6 @@ module Lib
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.IORef (newIORef)
-import Data.Proxy (Proxy(..))
-import Network.Wai (Application)
 import Network.Wai.Handler.Warp (run)
 import Servant
 import Servant.Server.Generic (AsServerT)

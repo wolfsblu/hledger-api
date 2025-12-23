@@ -6,20 +6,19 @@ module Api.Reports
   ) where
 
 import Control.Monad.IO.Class (liftIO)
-import Data.List (find, nub, sort)
-import Data.Maybe (fromMaybe, mapMaybe)
-import Data.Scientific (Scientific)
+import Data.List (nub, sort)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import Data.Time (Day, UTCTime(..), getCurrentTime, addDays)
+import Data.Time (Day, UTCTime(..), getCurrentTime)
 import Data.Time.Calendar (toGregorian, fromGregorian)
 import Servant.Server.Generic (AsServerT)
 
-import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Hledger as H
 
 import Api (ReportsAPI(..), MetaAPI(..))
+import Api.Convert
 import Api.Types
 import App (AppM, getJournal)
 
@@ -105,13 +104,11 @@ handleIncomeStatement mFrom mTo mDepth = do
 -- | Get cash flow report
 handleCashFlow :: Maybe Day -> Maybe Day -> AppM CashFlowReport
 handleCashFlow mFrom mTo = do
-  journal <- getJournal
+  _ <- getJournal  -- TODO: Implement actual cash flow calculation
   today <- liftIO $ utctDay <$> getCurrentTime
   let (year, _, _) = toGregorian today
       fromDate = fromMaybe (fromGregorian year 1 1) mFrom
       toDate = fromMaybe today mTo
-      ledger = H.ledgerFromJournal H.Any journal
-
       -- Simplified cash flow - just show cash account changes
       emptySection title = ReportSection title [] (MixedAmountJSON [])
 
@@ -186,28 +183,9 @@ toReportRow ledger name = ReportRow
   , rowDepth   = H.accountNameLevel name
   }
 
--- | Get the balance of an account in a ledger
-ledgerAccountBalance :: H.Ledger -> H.AccountName -> H.MixedAmount
-ledgerAccountBalance ledger name =
-  case find (\acct -> H.aname acct == name) (H.laccounts ledger) of
-    Just acct -> H.aibalance acct
-    Nothing   -> mempty
-
 -- | Subtract two mixed amounts (for net calculations)
 subtractAmounts :: MixedAmountJSON -> MixedAmountJSON -> MixedAmountJSON
 subtractAmounts (MixedAmountJSON as) (MixedAmountJSON bs) =
   MixedAmountJSON $ as ++ map negateAmount bs
   where
     negateAmount a = a { amountQuantity = negate (amountQuantity a) }
-
--- | Convert MixedAmount to JSON format
-mixedAmountToJSON :: H.MixedAmount -> MixedAmountJSON
-mixedAmountToJSON ma =
-  MixedAmountJSON $ map amountToJSON $ H.amounts ma
-
--- | Convert Amount to JSON format
-amountToJSON :: H.Amount -> AmountJSON
-amountToJSON a = AmountJSON
-  { amountQuantity  = fromRational (toRational (H.aquantity a))
-  , amountCommodity = H.acommodity a
-  }

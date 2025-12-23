@@ -4,20 +4,18 @@ module Api.Transactions
   ( transactionsHandlers
   ) where
 
-import Control.Monad.IO.Class (liftIO)
 import Data.List (sortOn)
 import Data.Maybe (fromMaybe)
-import Data.Scientific (Scientific)
 import Data.Text (Text)
-import Data.Time (Day, UTCTime(..), getCurrentTime)
+import Data.Time (Day)
 import Servant
 import Servant.Server.Generic (AsServerT)
 
-import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
 import qualified Hledger as H
 
 import Api (TransactionsAPI(..))
+import Api.Convert
 import Api.Types
 import App (AppM, getJournal)
 
@@ -39,7 +37,6 @@ handleListTransactions
   -> AppM (PaginatedResponse TransactionJSON)
 handleListTransactions mFrom mTo mAccount mDesc mLimit mOffset = do
   journal <- getJournal
-  today <- liftIO $ utctDay <$> getCurrentTime
   let fromDate = mFrom
       toDate = mTo
       limit = fromMaybe 100 mLimit
@@ -106,22 +103,4 @@ toPostingJSON p = PostingJSON
   { postingAccount = H.paccount p
   , postingAmount  = mixedAmountToJSON $ H.pamount p
   , postingStatus  = toStatusJSON $ H.pstatus p
-  }
-
--- | Convert hledger Status to JSON format
-toStatusJSON :: H.Status -> StatusJSON
-toStatusJSON H.Unmarked = Unmarked
-toStatusJSON H.Pending  = Pending
-toStatusJSON H.Cleared  = Cleared
-
--- | Convert MixedAmount to JSON format
-mixedAmountToJSON :: H.MixedAmount -> MixedAmountJSON
-mixedAmountToJSON ma =
-  MixedAmountJSON $ map amountToJSON $ H.amounts ma
-
--- | Convert Amount to JSON format
-amountToJSON :: H.Amount -> AmountJSON
-amountToJSON a = AmountJSON
-  { amountQuantity  = fromRational (toRational (H.aquantity a))
-  , amountCommodity = H.acommodity a
   }

@@ -1,4 +1,4 @@
-cabal-version: 2.2
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.38.1.
 --
@@ -12,7 +12,7 @@ bug-reports:    https://github.com/wolfsblu/hledger-api/issues
 author:         Lukas Wolfsberger
 maintainer:     1245519+wolfsblu@users.noreply.github.com
 copyright:      2025 Lukas Wolfsberger
-license:        AGPL-3.0-or-later
+license:        AGPL-3.0
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
@@ -27,16 +27,20 @@ library
   exposed-modules:
       Api
       Api.Accounts
+      Api.Convert
       Api.Reports
       Api.Swagger
       Api.Transactions
       Api.Types
+      Api.Types.Account
+      Api.Types.Common
+      Api.Types.Meta
+      Api.Types.Report
+      Api.Types.Transaction
       App
       Journal
       Lib
   other-modules:
-      Paths_hledger_api
-  autogen-modules:
       Paths_hledger_api
   hs-source-dirs:
       src
@@ -68,8 +72,6 @@ library
 executable hledger-api-exe
   main-is: Main.hs
   other-modules:
-      Paths_hledger_api
-  autogen-modules:
       Paths_hledger_api
   hs-source-dirs:
       app
@@ -103,8 +105,6 @@ test-suite hledger-api-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_hledger_api
-  autogen-modules:
       Paths_hledger_api
   hs-source-dirs:
       test
