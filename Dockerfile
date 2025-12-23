@@ -71,7 +71,9 @@ RUN chown nobody:nogroup /data
 # Run as nobody user (UID 65534)
 USER nobody
 
-ENV LEDGER_FILE=/data/ledger.journal
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    LEDGER_FILE=/data/ledger.journal
 
 EXPOSE 8080
 
