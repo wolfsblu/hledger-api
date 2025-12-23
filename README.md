@@ -12,25 +12,31 @@ A JSON API server for [hledger](https://hledger.org) journal files, providing pr
 
 ## Requirements
 
-- GHC 9.x (tested with 9.12.2)
-- Stack
+### Local Build
+- GHC 9.12.2
 - hledger-lib >= 1.43
+- Stack
 
-## Build
+## Quick Start
+
+### With Docker (Recommended)
 
 ```bash
-stack build              # Build the project
+docker build -t hledger-api .
+docker run -d -p 8080:8080 \
+  -v $(pwd)/example.journal:/data/ledger.journal:ro \
+  hledger-api
 ```
 
-## Run
+### Local Build
 
 ```bash
+stack build
+
+# With command line args
 stack run -- --journal /path/to/your.journal --port 8080
-```
 
-Or set the `LEDGER_FILE` environment variable:
-
-```bash
+# Or with LEDGER_FILE environment variable
 export LEDGER_FILE=~/.hledger.journal
 stack run
 ```
