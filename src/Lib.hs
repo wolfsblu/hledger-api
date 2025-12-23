@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Lib
   ( -- * Server
     runServer
@@ -11,6 +12,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.IORef (newIORef)
 import Network.Wai.Handler.Warp (run)
+import Network.Wai.Middleware.Cors
 import Servant
 import Servant.Server.Generic (AsServerT)
 
@@ -40,10 +42,22 @@ runServer config = do
 
 -- | Create the WAI application
 mkApp :: AppEnv -> Application
-mkApp env = serve (Proxy :: Proxy API) (hoistServer (Proxy :: Proxy API) (nt env) server)
+mkApp env = cors (const $ Just corsPolicy) $ serve (Proxy :: Proxy API) (hoistServer (Proxy :: Proxy API) (nt env) server)
   where
     nt :: AppEnv -> AppM a -> Handler a
     nt e action = liftIO $ runAppM e action
+
+corsPolicy :: CorsResourcePolicy
+corsPolicy = CorsResourcePolicy
+  { corsOrigins = Nothing
+  , corsMethods = ["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"]
+  , corsRequestHeaders = ["Authorization", "Content-Type"]
+  , corsExposedHeaders = Nothing
+  , corsMaxAge = Nothing
+  , corsVaryOrigin = False
+  , corsRequireOrigin = False
+  , corsIgnoreFailures = False
+  }
 
 -- | Full server implementation
 server :: ServerT API AppM

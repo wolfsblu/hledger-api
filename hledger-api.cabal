@@ -66,6 +66,7 @@ library
     , time
     , transformers
     , wai >=3.2
+    , wai-cors >=0.2
     , warp >=3.3
   default-language: Haskell2010
 
@@ -98,6 +99,7 @@ executable hledger-api-exe
     , time
     , transformers
     , wai >=3.2
+    , wai-cors >=0.2
     , warp >=3.3
   default-language: Haskell2010
 
@@ -131,5 +133,6 @@ test-suite hledger-api-test
     , time
     , transformers
     , wai >=3.2
+    , wai-cors >=0.2
     , warp >=3.3
   default-language: Haskell2010

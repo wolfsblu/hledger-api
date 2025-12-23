@@ -30,6 +30,7 @@ dependencies:
 - aeson >= 2.0
 - warp >= 3.3
 - wai >= 3.2
+- wai-cors >= 0.2
 - text
 - time
 - bytestring
