@@ -1,0 +1,55 @@
+; Example hledger journal for testing the API
+; This file demonstrates basic hledger syntax
+
+; Account declarations with types
+account assets:bank:checking  ; type:Asset
+account assets:bank:savings   ; type:Asset
+account income:salary         ; type:Revenue
+account expenses:food         ; type:Expense
+account expenses:rent         ; type:Expense
+account liabilities:credit    ; type:Liability
+
+; Commodities
+commodity $1000.00
+
+; Transactions
+2024-01-01 * Opening Balance
+    assets:bank:checking        $5000.00
+    assets:bank:savings         $10000.00
+    equity:opening balances
+
+2024-01-05 * Salary
+    income:salary               $-4000.00
+    assets:bank:checking        $4000.00
+
+2024-01-10 Grocery Store
+    expenses:food               $125.50
+    assets:bank:checking
+
+2024-01-15 * Rent Payment
+    expenses:rent               $1500.00
+    assets:bank:checking
+
+2024-01-20 Credit Card Payment
+    liabilities:credit          $-500.00
+    assets:bank:checking        $500.00
+
+2024-01-25 Restaurant
+    expenses:food               $65.00
+    liabilities:credit          $-65.00
+
+2024-02-01 * Salary
+    income:salary               $-4000.00
+    assets:bank:checking        $4000.00
+
+2024-02-05 Grocery Store
+    expenses:food               $145.25
+    assets:bank:checking
+
+2024-02-10 * Savings Transfer
+    assets:bank:savings         $1000.00
+    assets:bank:checking        $-1000.00
+
+2024-02-15 * Rent Payment
+    expenses:rent               $1500.00
+    assets:bank:checking
