@@ -53,7 +53,6 @@ RUN strip /build/bin/hledger-api-exe
 # Stage 2: Minimal runtime image
 FROM debian:bookworm-slim
 
-# Install only runtime dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -63,7 +62,6 @@ RUN apt-get update && \
         libnuma1 && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy the binary from builder
 COPY --from=builder /build/bin/hledger-api-exe /usr/local/bin/hledger-api
 
 # Set working directory and ensure it's owned by nobody
@@ -73,13 +71,12 @@ RUN chown nobody:nogroup /data
 # Run as nobody user (UID 65534)
 USER nobody
 
-# Expose API port
+ENV LEDGER_FILE=/data/ledger.journal
+
 EXPOSE 8080
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD timeout 2 bash -c "</dev/tcp/localhost/8080" || exit 1
 
-# Default command
 ENTRYPOINT ["/usr/local/bin/hledger-api"]
-CMD ["--journal", "/data/ledger.journal", "--port", "8080", "--host", "0.0.0.0"]
+CMD ["--port", "8080", "--host", "0.0.0.0"]
