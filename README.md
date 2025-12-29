@@ -22,10 +22,9 @@ A JSON API server for [hledger](https://hledger.org) journal files, providing pr
 ### With Docker (Recommended)
 
 ```bash
-docker build -t hledger-api .
 docker run -d -p 8080:8080 \
   -v $(pwd)/example.journal:/data/ledger.journal:ro \
-  hledger-api
+  ghcr.io/wolfsblu/hledger-api:latest
 ```
 
 ### Local Build
