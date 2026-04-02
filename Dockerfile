@@ -11,9 +11,11 @@ RUN apt-get update && \
         gcc \
         g++ \
         gnupg \
+        pkg-config \
         libc6-dev \
         libffi-dev \
         libgmp-dev \
+        liblzma-dev \
         libnuma-dev \
         libtinfo-dev \
         netbase \
