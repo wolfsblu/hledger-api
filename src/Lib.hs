@@ -15,6 +15,7 @@ import Network.Wai.Handler.Warp (run)
 import Network.Wai.Middleware.Cors
 import Servant
 import Servant.Server.Generic (AsServerT)
+import Servant.Swagger.UI (swaggerSchemaUIServerT)
 
 import qualified Hledger as H
 
@@ -61,7 +62,7 @@ corsPolicy = CorsResourcePolicy
 
 -- | Full server implementation
 server :: ServerT API AppM
-server = rootServer :<|> return apiSwagger
+server = rootServer :<|> return apiSwagger :<|> swaggerSchemaUIServerT apiSwagger
 
 -- | Root API server with named routes
 rootServer :: RootAPI (AsServerT AppM)

@@ -62,6 +62,7 @@ library
     , servant >=0.20
     , servant-openapi3 >=2.0
     , servant-server >=0.20
+    , servant-swagger-ui >=0.3
     , text
     , time
     , transformers
@@ -95,6 +96,7 @@ executable hledger-api-exe
     , servant >=0.20
     , servant-openapi3 >=2.0
     , servant-server >=0.20
+    , servant-swagger-ui >=0.3
     , text
     , time
     , transformers
@@ -129,6 +131,7 @@ test-suite hledger-api-test
     , servant >=0.20
     , servant-openapi3 >=2.0
     , servant-server >=0.20
+    , servant-swagger-ui >=0.3
     , text
     , time
     , transformers

@@ -25,6 +25,7 @@ dependencies:
 - servant >= 0.20
 - servant-server >= 0.20
 - servant-openapi3 >= 2.0
+- servant-swagger-ui >= 0.3
 - openapi3 >= 3.2
 - insert-ordered-containers
 - aeson >= 2.0

@@ -21,15 +21,17 @@ import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Servant
+import Servant.Swagger.UI (SwaggerSchemaUI)
 
 import Api.Types
 
 -- | Core API type (without swagger endpoint)
 type CoreAPI = "api" :> "v1" :> NamedRoutes RootAPI
 
--- | Full API type including OpenAPI spec endpoint
+-- | Full API type including OpenAPI spec endpoint and Swagger UI
 type API = CoreAPI
       :<|> "openapi.json" :> Get '[JSON] OpenApi
+      :<|> SwaggerSchemaUI "docs" "openapi.json"
 
 -- | Root API with named routes
 data RootAPI mode = RootAPI
