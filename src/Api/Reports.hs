@@ -4,7 +4,7 @@ module Api.Reports
   ) where
 
 import Control.Monad.IO.Class (liftIO)
-import Data.List (nub, sort)
+import Data.List (nub, partition, sort)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Time (Day, UTCTime(..), getCurrentTime)
@@ -56,9 +56,9 @@ handleBalanceSheet mDate mDepth = do
       liabSection = buildSection "Liabilities" ledger liabilities
       equitySection = buildSection "Equity" ledger equity
 
-      -- Net worth = assets - liabilities
-      netWorth = subtractAmounts (sectionTotal assetSection)
-                                 (sectionTotal liabSection)
+      -- Net worth = assets + liabilities (liabilities already carry negative sign)
+      netWorth = addAmounts (sectionTotal assetSection)
+                            (sectionTotal liabSection)
 
   return BalanceSheetReport
     { bsDate        = asOfDate
@@ -87,9 +87,10 @@ handleIncomeStatement mFrom mTo mDepth = do
       revSection = buildSection "Revenues" ledger revenues
       expSection = buildSection "Expenses" ledger expenses
 
-      -- Net income = revenues - expenses
-      netIncome = subtractAmounts (sectionTotal revSection)
-                                  (sectionTotal expSection)
+      -- Net income = -(revenues + expenses) since both carry natural signs
+      -- (revenue is negative/credit, expenses positive/debit)
+      netIncome = negateAmounts $ addAmounts (sectionTotal revSection)
+                                             (sectionTotal expSection)
 
   return IncomeStatementReport
     { isFromDate  = fromDate
@@ -166,7 +167,10 @@ filterByPrefix prefix maxDepth =
 buildSection :: Text -> H.Ledger -> [H.AccountName] -> ReportSection
 buildSection title ledger accts =
   let rows = map (toReportRow ledger) accts
-      total = mconcat $ map (ledgerAccountBalance ledger) accts
+      -- Only sum leaf accounts to avoid double-counting, since parent
+      -- account inclusive balances already contain their children
+      leafAccts = filter (\a -> not $ any (\b -> a /= b && a `T.isPrefixOf` b) accts) accts
+      total = mconcat $ map (ledgerAccountBalance ledger) leafAccts
   in ReportSection
     { sectionTitle = title
     , sectionRows  = rows
@@ -181,9 +185,20 @@ toReportRow ledger name = ReportRow
   , rowDepth   = H.accountNameLevel name
   }
 
--- | Subtract two mixed amounts (for net calculations)
-subtractAmounts :: MixedAmountJSON -> MixedAmountJSON -> MixedAmountJSON
-subtractAmounts (MixedAmountJSON as) (MixedAmountJSON bs) =
-  MixedAmountJSON $ as ++ map negateAmount bs
-  where
-    negateAmount a = a { amountQuantity = negate (amountQuantity a) }
+-- | Add two mixed amounts, combining by commodity
+addAmounts :: MixedAmountJSON -> MixedAmountJSON -> MixedAmountJSON
+addAmounts (MixedAmountJSON as) (MixedAmountJSON bs) =
+  MixedAmountJSON $ combineByCommodity (as ++ bs)
+
+-- | Negate all amounts
+negateAmounts :: MixedAmountJSON -> MixedAmountJSON
+negateAmounts (MixedAmountJSON as) =
+  MixedAmountJSON $ map (\a -> a { amountQuantity = negate (amountQuantity a) }) as
+
+-- | Group amounts by commodity and sum their quantities
+combineByCommodity :: [AmountJSON] -> [AmountJSON]
+combineByCommodity [] = []
+combineByCommodity (x:xs) =
+  let (same, rest) = partition (\a -> amountCommodity a == amountCommodity x) xs
+      total = foldl' (\acc a -> acc + amountQuantity a) (amountQuantity x) same
+  in x { amountQuantity = total } : combineByCommodity rest
