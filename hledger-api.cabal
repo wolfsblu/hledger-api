@@ -44,6 +44,8 @@ library
       Paths_hledger_api
   hs-source-dirs:
       src
+  default-extensions:
+      OverloadedStrings
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       aeson >=2.0
@@ -69,7 +71,7 @@ library
     , wai >=3.2
     , wai-cors >=0.2
     , warp >=3.3
-  default-language: Haskell2010
+  default-language: GHC2024
 
 executable hledger-api-exe
   main-is: Main.hs
@@ -77,6 +79,8 @@ executable hledger-api-exe
       Paths_hledger_api
   hs-source-dirs:
       app
+  default-extensions:
+      OverloadedStrings
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson >=2.0
@@ -103,7 +107,7 @@ executable hledger-api-exe
     , wai >=3.2
     , wai-cors >=0.2
     , warp >=3.3
-  default-language: Haskell2010
+  default-language: GHC2024
 
 test-suite hledger-api-test
   type: exitcode-stdio-1.0
@@ -112,6 +116,8 @@ test-suite hledger-api-test
       Paths_hledger_api
   hs-source-dirs:
       test
+  default-extensions:
+      OverloadedStrings
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson >=2.0
@@ -138,4 +144,4 @@ test-suite hledger-api-test
     , wai >=3.2
     , wai-cors >=0.2
     , warp >=3.3
-  default-language: Haskell2010
+  default-language: GHC2024

@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | Conversion utilities for transforming hledger types to API JSON types
 module Api.Convert
   ( -- * Amount conversions

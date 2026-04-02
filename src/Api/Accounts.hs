@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Api.Accounts
   ( accountsHandlers
   ) where

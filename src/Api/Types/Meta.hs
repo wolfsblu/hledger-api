@@ -1,6 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Api.Types.Meta
   ( VersionInfo(..)
   , CommodityInfo(..)
