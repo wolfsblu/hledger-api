@@ -4,6 +4,7 @@ module App
   , AppM(..)
   , runAppM
   , getJournal
+  , modifyJournal
   , defaultConfig
   ) where
 
@@ -11,7 +12,7 @@ import Control.Monad.Except (MonadError(..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (MonadReader, ReaderT, asks, runReaderT)
 import qualified Control.Exception as Control.Exception
-import Data.IORef (IORef, readIORef)
+import Data.IORef (IORef, readIORef, modifyIORef)
 import Hledger (Journal)
 import Servant.Server (ServerError)
 
@@ -62,3 +63,9 @@ getJournal :: AppM Journal
 getJournal = do
   ref <- asks envJournal
   liftIO $ readIORef ref
+
+-- | Modify the journal in the environment
+modifyJournal :: (Journal -> Journal) -> AppM ()
+modifyJournal f = do
+  ref <- asks envJournal
+  liftIO $ modifyIORef ref f
