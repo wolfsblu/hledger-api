@@ -1,27 +1,37 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Api.Transactions
   ( transactionsHandlers
   ) where
 
+import Control.Exception (try, SomeException)
+import Control.Monad (when, unless)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Reader (asks)
+import Data.Aeson (encode)
 import Data.List (sortOn)
+import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Time (Day)
 import Servant
 import Servant.Server.Generic (AsServerT)
 
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Hledger as H
 
 import Api (TransactionsAPI(..))
 import Api.Convert
 import Api.Types
-import App (AppM, getJournal)
+import App (AppM, AppEnv(..), AppConfig(..), getJournal, modifyJournal)
 
 -- | Handlers for the transactions API
 transactionsHandlers :: TransactionsAPI (AsServerT AppM)
 transactionsHandlers = TransactionsAPI
-  { listTransactions = handleListTransactions
-  , getTransaction   = handleGetTransaction
+  { listTransactions  = handleListTransactions
+  , getTransaction    = handleGetTransaction
+  , createTransaction = handleCreateTransaction
   }
 
 -- | List transactions with optional filters
@@ -102,3 +112,53 @@ toPostingJSON p = PostingJSON
   , postingAmount  = mixedAmountToJSON $ H.pamount p
   , postingStatus  = toStatusJSON $ H.pstatus p
   }
+
+-- | Create a new transaction and append it to the journal file
+handleCreateTransaction
+  :: CreateTransactionRequest
+  -> AppM (Headers '[Header "Location" Text] TransactionJSON)
+handleCreateTransaction req = do
+  -- 1. VALIDATE
+  let postings = ctPostings req
+  when (length postings < 2) $
+    throwError err400 { errBody = "A transaction must have at least 2 postings" }
+
+  let missingCount = length $ filter (\p -> cpAmount p == Nothing) postings
+  when (missingCount > 1) $
+    throwError err400 { errBody = "At most one posting may omit its amount" }
+
+  when (missingCount == 0) $ do
+    let allAmounts = concatMap (unMixedAmount . fromMaybe (MixedAmountJSON []) . cpAmount) postings
+        byCommodity :: Map Text Double
+        byCommodity = Map.fromListWith (+)
+          [ (amountCommodity a, realToFrac (amountQuantity a)) | a <- allAmounts ]
+        unbalanced = Map.filter (\v -> abs v > 1e-9) byCommodity
+    unless (Map.null unbalanced) $
+      throwError err400
+        { errBody = "Postings do not balance. Unbalanced commodities: "
+                 <> encode (Map.keys unbalanced)
+        }
+
+  -- 2. CONVERT
+  let txn = fromCreateTransaction req
+
+  -- 3. WRITE TO DISK
+  journalPath <- asks (configJournalPath . envConfig)
+  let txnText = "\n" <> H.showTransaction txn
+  writeResult <- liftIO $ try @SomeException $
+    appendFile journalPath (T.unpack txnText)
+  case writeResult of
+    Left ex ->
+      throwError err500 { errBody = "Failed to write to journal: " <> encode (show ex) }
+    Right () -> pure ()
+
+  -- 4. UPDATE MEMORY
+  journal <- getJournal
+  let idx    = length (H.jtxns journal)
+      newTxn = txn { H.tindex = fromIntegral idx + 1 }
+  modifyJournal (\j -> j { H.jtxns = H.jtxns j ++ [newTxn] })
+
+  -- 5. RESPOND
+  let result   = toTransactionJSON idx newTxn
+      location = "/api/v1/transactions/" <> T.pack (show idx)
+  return $ addHeader location result
