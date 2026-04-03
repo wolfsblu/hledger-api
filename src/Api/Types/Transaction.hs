@@ -2,10 +2,12 @@ module Api.Types.Transaction
   ( TransactionJSON(..)
   , PostingJSON(..)
   , TransactionDetail
+  , CreatePostingRequest(..)
+  , CreateTransactionRequest(..)
   ) where
 
 import Control.Lens hiding ((.=))
-import Data.Aeson (ToJSON(..), (.=), object)
+import Data.Aeson (ToJSON(..), FromJSON(..), (.=), (.:), (.:?), object, withObject)
 import Data.OpenApi
 import Data.Proxy (Proxy(..))
 import Data.Text (Text)
@@ -91,3 +93,70 @@ instance ToSchema TransactionJSON where
 
 -- | Transaction detail (same as TransactionJSON for now)
 type TransactionDetail = TransactionJSON
+
+-- | Posting within a create-transaction request
+data CreatePostingRequest = CreatePostingRequest
+  { cpAccount :: Text
+  , cpAmount  :: Maybe MixedAmountJSON
+  , cpStatus  :: Maybe StatusJSON
+  } deriving (Show, Eq, Generic)
+
+instance FromJSON CreatePostingRequest where
+  parseJSON = withObject "CreatePostingRequest" $ \v ->
+    CreatePostingRequest
+      <$> v .:  "account"
+      <*> v .:? "amount"
+      <*> v .:? "status"
+
+instance ToSchema CreatePostingRequest where
+  declareNamedSchema _ = do
+    mixedRef <- declareSchemaRef (Proxy :: Proxy MixedAmountJSON)
+    statusRef <- declareSchemaRef (Proxy :: Proxy StatusJSON)
+    return $ NamedSchema (Just "CreatePosting") $ mempty
+      & type_ ?~ OpenApiObject
+      & properties .~ IOHM.fromList
+          [ ("account", Inline $ mempty & type_ ?~ OpenApiString)
+          , ("amount",  mixedRef)
+          , ("status",  statusRef)
+          ]
+      & required .~ ["account"]
+
+-- | Request body for creating a new transaction
+data CreateTransactionRequest = CreateTransactionRequest
+  { ctDate        :: Day
+  , ctDate2       :: Maybe Day
+  , ctStatus      :: Maybe StatusJSON
+  , ctCode        :: Maybe Text
+  , ctDescription :: Text
+  , ctComment     :: Maybe Text
+  , ctPostings    :: [CreatePostingRequest]
+  } deriving (Show, Eq, Generic)
+
+instance FromJSON CreateTransactionRequest where
+  parseJSON = withObject "CreateTransactionRequest" $ \v ->
+    CreateTransactionRequest
+      <$> v .:  "date"
+      <*> v .:? "date2"
+      <*> v .:? "status"
+      <*> v .:? "code"
+      <*> v .:  "description"
+      <*> v .:? "comment"
+      <*> v .:  "postings"
+
+instance ToSchema CreateTransactionRequest where
+  declareNamedSchema _ = do
+    statusRef  <- declareSchemaRef (Proxy :: Proxy StatusJSON)
+    postingRef <- declareSchemaRef (Proxy :: Proxy CreatePostingRequest)
+    return $ NamedSchema (Just "CreateTransactionRequest") $ mempty
+      & type_ ?~ OpenApiObject
+      & properties .~ IOHM.fromList
+          [ ("date",        Inline $ mempty & type_ ?~ OpenApiString & format ?~ "date")
+          , ("date2",       Inline $ mempty & type_ ?~ OpenApiString & format ?~ "date")
+          , ("status",      statusRef)
+          , ("code",        Inline $ mempty & type_ ?~ OpenApiString)
+          , ("description", Inline $ mempty & type_ ?~ OpenApiString)
+          , ("comment",     Inline $ mempty & type_ ?~ OpenApiString)
+          , ("postings",    Inline $ mempty & type_ ?~ OpenApiArray
+                                            & items ?~ OpenApiItemsObject postingRef)
+          ]
+      & required .~ ["date", "description", "postings"]
