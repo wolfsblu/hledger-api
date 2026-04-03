@@ -140,7 +140,20 @@ handleCreateTransaction req = do
         }
 
   -- 2. CONVERT
-  let txn = fromCreateTransaction req
+  journal <- getJournal
+  let rawTxn = fromCreateTransaction req
+  
+  -- Pass the transaction to hledger's balancing engine
+  let opts = H.defbalancingopts{H.infer_balancing_costs_ = True}
+  balancedTxn <- case H.balanceTransaction opts rawTxn of
+    Left err -> 
+      throwError err400 { errBody = "Cannot balance transaction: " <> encode (show err) }
+    Right t -> pure t
+
+  -- 3. ASSIGN INDEX
+  -- Use the successfully balanced transaction moving forward
+  let idx    = length (H.jtxns journal)
+      txn = balancedTxn { H.tindex = fromIntegral idx + 1 }
 
   -- 3. WRITE TO DISK
   journalPath <- asks (configJournalPath . envConfig)
@@ -152,13 +165,9 @@ handleCreateTransaction req = do
       throwError err500 { errBody = "Failed to write to journal: " <> encode (show ex) }
     Right () -> pure ()
 
-  -- 4. UPDATE MEMORY
-  journal <- getJournal
-  let idx    = length (H.jtxns journal)
-      newTxn = txn { H.tindex = fromIntegral idx + 1 }
-  modifyJournal (\j -> j { H.jtxns = H.jtxns j ++ [newTxn] })
+  modifyJournal (\j -> j { H.jtxns = H.jtxns j ++ [txn] })
 
   -- 5. RESPOND
-  let result   = toTransactionJSON idx newTxn
+  let result   = toTransactionJSON idx txn
       location = "/api/v1/transactions/" <> T.pack (show idx)
   return $ addHeader location result
