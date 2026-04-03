@@ -13,7 +13,7 @@ A JSON API server for [hledger](https://hledger.org) journal files, providing pr
 ## Requirements
 
 ### Local Build
-- GHC 9.12.2
+- GHC 9.10.3
 - hledger-lib >= 1.43
 - Stack
 
@@ -51,6 +51,7 @@ stack run
 ### Transactions
 - `GET /api/v1/transactions` - List transactions (with filtering & pagination)
 - `GET /api/v1/transactions/:index` - Get transaction by index
+- `POST /api/v1/transactions` - Post a new transaction
 
 ### Reports
 - `GET /api/v1/reports/balance-sheet` - Balance sheet report
