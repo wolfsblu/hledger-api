@@ -81,6 +81,10 @@ data TransactionsAPI mode = TransactionsAPI
   , getTransaction :: mode :-
       Capture "index" Int :>
       Get '[JSON] TransactionDetail
+
+  , createTransaction :: mode :-
+      ReqBody '[JSON] CreateTransactionRequest :>
+      PostCreated '[JSON] (Headers '[Header "Location" Text] TransactionJSON)
   } deriving Generic
 
 -- | Reports API
