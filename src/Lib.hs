@@ -7,8 +7,8 @@ module Lib
   , module Api
   ) where
 
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Except (runExceptT)
+import Control.Exception (try)
+import Control.Monad.Trans.Except (ExceptT(..), runExceptT)
 import Data.IORef (newIORef)
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Middleware.Cors
@@ -45,7 +45,7 @@ mkApp :: AppEnv -> Application
 mkApp env = cors (const $ Just corsPolicy) $ serve (Proxy :: Proxy API) (hoistServer (Proxy :: Proxy API) (nt env) server)
   where
     nt :: AppEnv -> AppM a -> Handler a
-    nt e action = liftIO $ runAppM e action
+    nt e action = Handler $ ExceptT $ try (runAppM e action)
 
 corsPolicy :: CorsResourcePolicy
 corsPolicy = CorsResourcePolicy
