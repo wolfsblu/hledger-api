@@ -3,12 +3,19 @@ module Api.Convert
   ( -- * Amount conversions
     amountToJSON
   , mixedAmountToJSON
+    -- * Reverse conversions
+  , fromStatusJSON
+  , fromAmountJSON
+  , fromMixedAmountJSON
+  , fromCreatePosting
+  , fromCreateTransaction
     -- * Hledger helpers
   , ledgerAccountBalance
   , toStatusJSON
   ) where
 
 import Data.List (find)
+import Data.Maybe (fromMaybe)
 import qualified Hledger as H
 
 import Api.Types
@@ -39,3 +46,42 @@ toStatusJSON :: H.Status -> StatusJSON
 toStatusJSON H.Unmarked = Unmarked
 toStatusJSON H.Pending  = Pending
 toStatusJSON H.Cleared  = Cleared
+
+-- | Convert JSON Status to hledger Status
+fromStatusJSON :: StatusJSON -> H.Status
+fromStatusJSON Unmarked = H.Unmarked
+fromStatusJSON Pending  = H.Pending
+fromStatusJSON Cleared  = H.Cleared
+
+-- | Convert JSON Amount to hledger Amount
+fromAmountJSON :: AmountJSON -> H.Amount
+fromAmountJSON a = H.nullamt
+  { H.acommodity = amountCommodity a
+  , H.aquantity  = fromRational (toRational (amountQuantity a))
+  }
+
+-- | Convert JSON MixedAmount to hledger MixedAmount
+fromMixedAmountJSON :: MixedAmountJSON -> H.MixedAmount
+fromMixedAmountJSON (MixedAmountJSON amts) =
+  H.mixed (map fromAmountJSON amts)
+
+-- | Convert CreatePostingRequest to hledger Posting
+-- If cpAmount is Nothing, uses missingmixedamt so hledger can auto-balance
+fromCreatePosting :: CreatePostingRequest -> H.Posting
+fromCreatePosting p = H.nullposting
+  { H.paccount = cpAccount p
+  , H.pamount  = maybe H.missingmixedamt fromMixedAmountJSON (cpAmount p)
+  , H.pstatus  = fromMaybe H.Unmarked (fmap fromStatusJSON (cpStatus p))
+  }
+
+-- | Convert CreateTransactionRequest to hledger Transaction
+fromCreateTransaction :: CreateTransactionRequest -> H.Transaction
+fromCreateTransaction req = H.nulltransaction
+  { H.tdate        = ctDate req
+  , H.tdate2       = ctDate2 req
+  , H.tstatus      = fromMaybe H.Unmarked (fmap fromStatusJSON (ctStatus req))
+  , H.tcode        = fromMaybe "" (ctCode req)
+  , H.tdescription = ctDescription req
+  , H.tcomment     = fromMaybe "" (ctComment req)
+  , H.tpostings    = map fromCreatePosting (ctPostings req)
+  }
