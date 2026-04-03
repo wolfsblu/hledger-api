@@ -80,9 +80,9 @@ handleIncomeStatement mFrom mTo mDepth = do
       ledger = H.ledgerFromJournal H.Any journal
       accts = H.ledgerAccountNames ledger
 
-      revenues = filterByPrefix "revenues" maxDepth accts ++
+      revenues = filterByPrefix "revenue" maxDepth accts ++
                  filterByPrefix "income" maxDepth accts
-      expenses = filterByPrefix "expenses" maxDepth accts
+      expenses = filterByPrefix "expense" maxDepth accts
 
       revSection = buildSection "Revenues" ledger revenues
       expSection = buildSection "Expenses" ledger expenses
