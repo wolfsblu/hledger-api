@@ -5,7 +5,6 @@ module Api.Transactions
   ) where
 
 import Control.Exception (try, SomeException)
-import Control.Monad (when, unless)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Data.Aeson (encode)
@@ -30,10 +29,11 @@ import App (AppM, AppEnv(..), AppConfig(..), getJournal, modifyJournal)
 -- | Handlers for the transactions API
 transactionsHandlers :: TransactionsAPI (AsServerT AppM)
 transactionsHandlers = TransactionsAPI
-  { listTransactions   = handleListTransactions
-  , getTransaction     = handleGetTransaction
-  , createTransaction  = handleCreateTransaction
-  , importTransactions = handleImportTransactions
+  { listTransactions        = handleListTransactions
+  , getTransaction          = handleGetTransaction
+  , createTransaction       = handleCreateTransaction
+  , importTransactions      = handleImportTransactions
+  , bulkCreateTransactions  = handleBulkCreateTransactions
   }
 
 -- | List transactions with optional filters
@@ -93,49 +93,48 @@ applyFilters mFrom mTo mAccount mDesc = filter matches
     matchesDesc desc txn =
       T.toLower desc `T.isInfixOf` T.toLower (H.tdescription txn)
 
+-- | Validate and balance a single CreateTransactionRequest.
+-- Returns either an error message or the balanced hledger Transaction.
+validateAndBalance :: CreateTransactionRequest -> Either String H.Transaction
+validateAndBalance req = do
+  let postings = ctPostings req
+  if length postings < 2
+    then Left "A transaction must have at least 2 postings"
+    else Right ()
+  let missingCount = length $ filter (\p -> cpAmount p == Nothing) postings
+  if missingCount > 1
+    then Left "At most one posting may omit its amount"
+    else Right ()
+  if missingCount == 0
+    then do
+      let allAmounts = concatMap (unMixedAmount . fromMaybe (MixedAmountJSON []) . cpAmount) postings
+          byCommodity :: Map Text Double
+          byCommodity = Map.fromListWith (+)
+            [ (amountCommodity a, realToFrac (amountQuantity a)) | a <- allAmounts ]
+          unbalanced = Map.filter (\v -> abs v > 1e-9) byCommodity
+      if Map.null unbalanced
+        then Right ()
+        else Left $ "Postings do not balance. Unbalanced commodities: "
+                 <> show (Map.keys unbalanced)
+    else Right ()
+  let opts = H.defbalancingopts{H.infer_balancing_costs_ = True}
+  case H.balanceTransaction opts (fromCreateTransaction req) of
+    Left err -> Left $ "Cannot balance transaction: " <> show err
+    Right t  -> Right t
+
 -- | Create a new transaction and append it to the journal file
 handleCreateTransaction
   :: CreateTransactionRequest
   -> AppM (Headers '[Header "Location" Text] TransactionJSON)
 handleCreateTransaction req = do
-  -- 1. VALIDATE
-  let postings = ctPostings req
-  when (length postings < 2) $
-    throwError err400 { errBody = "A transaction must have at least 2 postings" }
+  balancedTxn <- case validateAndBalance req of
+    Left msg -> throwError err400 { errBody = encode msg }
+    Right t  -> pure t
 
-  let missingCount = length $ filter (\p -> cpAmount p == Nothing) postings
-  when (missingCount > 1) $
-    throwError err400 { errBody = "At most one posting may omit its amount" }
-
-  when (missingCount == 0) $ do
-    let allAmounts = concatMap (unMixedAmount . fromMaybe (MixedAmountJSON []) . cpAmount) postings
-        byCommodity :: Map Text Double
-        byCommodity = Map.fromListWith (+)
-          [ (amountCommodity a, realToFrac (amountQuantity a)) | a <- allAmounts ]
-        unbalanced = Map.filter (\v -> abs v > 1e-9) byCommodity
-    unless (Map.null unbalanced) $
-      throwError err400
-        { errBody = "Postings do not balance. Unbalanced commodities: "
-                 <> encode (Map.keys unbalanced)
-        }
-
-  -- 2. CONVERT
   journal <- getJournal
-  let rawTxn = fromCreateTransaction req
-
-  -- Pass the transaction to hledger's balancing engine
-  let opts = H.defbalancingopts{H.infer_balancing_costs_ = True}
-  balancedTxn <- case H.balanceTransaction opts rawTxn of
-    Left err ->
-      throwError err400 { errBody = "Cannot balance transaction: " <> encode (show err) }
-    Right t -> pure t
-
-  -- 3. ASSIGN INDEX
-  -- Use the successfully balanced transaction moving forward
-  let idx    = length (H.jtxns journal)
+  let idx = length (H.jtxns journal)
       txn = balancedTxn { H.tindex = fromIntegral idx + 1 }
 
-  -- 3. WRITE TO DISK
   journalPath <- asks (configJournalPath . envConfig)
   let txnText = "\n" <> H.showTransaction txn
   writeResult <- liftIO $ try @SomeException $
@@ -147,7 +146,48 @@ handleCreateTransaction req = do
 
   modifyJournal (\j -> j { H.jtxns = H.jtxns j ++ [txn] })
 
-  -- 5. RESPOND
   let result   = toTransactionJSON idx txn
       location = "/api/v1/transactions/" <> T.pack (show idx)
   return $ addHeader location result
+
+-- | Create multiple transactions atomically.
+-- Validates all before writing any; on failure returns 400 with the
+-- 0-based index of the first offending transaction.
+handleBulkCreateTransactions
+  :: [CreateTransactionRequest]
+  -> AppM [TransactionJSON]
+handleBulkCreateTransactions [] = return []
+handleBulkCreateTransactions reqs = do
+  -- 1. VALIDATE ALL
+  balancedTxns <- case validateAll (zip [0..] reqs) of
+    Left (i, msg) ->
+      throwError err400
+        { errBody = "Transaction " <> encode (show (i :: Int)) <> ": " <> encode msg }
+    Right ts -> pure ts
+
+  -- 2. ASSIGN INDICES
+  journal <- getJournal
+  let baseIdx = length (H.jtxns journal)
+      indexed = zipWith (\i t -> t { H.tindex = fromIntegral (baseIdx + i) + 1 })
+                  [0..] balancedTxns
+
+  -- 3. WRITE ALL ATOMICALLY (single appendFile call)
+  journalPath <- asks (configJournalPath . envConfig)
+  let txnText = concatMap (\t -> T.unpack $ "\n" <> H.showTransaction t) indexed
+  writeResult <- liftIO $ try @SomeException $
+    appendFile journalPath txnText
+  case writeResult of
+    Left ex ->
+      throwError err500 { errBody = "Failed to write to journal: " <> encode (show ex) }
+    Right () -> pure ()
+
+  modifyJournal (\j -> j { H.jtxns = H.jtxns j ++ indexed })
+
+  return $ zipWith toTransactionJSON [baseIdx..] indexed
+
+  where
+    validateAll [] = Right []
+    validateAll ((i, req) : rest) =
+      case validateAndBalance req of
+        Left msg -> Left (i, msg)
+        Right t  -> fmap (t :) (validateAll rest)

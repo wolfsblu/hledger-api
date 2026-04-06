@@ -65,14 +65,16 @@ handleGetAccount name = do
 
 -- | Get account balance over time
 handleGetAccountBalance :: Text -> Maybe Day -> Maybe Day -> AppM BalanceReport
-handleGetAccountBalance name _mFrom _mTo = do
+handleGetAccountBalance name mFrom mTo = do
   journal <- getJournal
   today <- liftIO $ utctDay <$> getCurrentTime
-  let toDate = today
-      ledger = H.ledgerFromJournal H.Any journal
+  let journalStart = fromMaybe today (H.journalStartDate False journal)
+      fromDate = fromMaybe journalStart mFrom
+      toDate = fromMaybe today mTo
+      -- DateSpan end is exclusive in hledger, so use succ toDate to include toDate
+      dateQuery = H.Date $ H.DateSpan (Just (H.Exact fromDate)) (Just (H.Exact (succ toDate)))
+      ledger = H.ledgerFromJournal dateQuery journal
       totalBalance = ledgerAccountBalance ledger name
-  -- For now, return just the current total balance
-  -- A full implementation would compute balance at each date
   return BalanceReport
     { balanceAccount = name
     , balanceHistory = [BalanceItem toDate (mixedAmountToJSON totalBalance)]

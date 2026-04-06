@@ -93,6 +93,11 @@ data TransactionsAPI mode = TransactionsAPI
       QueryParam "dryRun" Bool :>
       MultipartForm Mem (MultipartData Mem) :>
       Post '[JSON] ImportResponse
+
+  , bulkCreateTransactions :: mode :-
+      "bulk" :>
+      ReqBody '[JSON] [CreateTransactionRequest] :>
+      PostCreated '[JSON] [TransactionJSON]
   } deriving Generic
 
 -- | Reports API

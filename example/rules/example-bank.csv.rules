@@ -1,0 +1,40 @@
+# Rules file for example-bank.csv
+# Maps a typical bank CSV export to hledger transactions.
+#
+# CSV columns: Date, Description, Amount, Balance
+# Positive Amount = credit (money in), Negative Amount = debit (money out)
+
+skip 1
+
+fields date, description, amount, balance
+
+date-format %Y-%m-%d
+
+currency $
+
+# Posting 1: always the checking account
+account1 assets:bank:checking
+amount1  %amount
+
+# Default posting 2: uncategorised expenses/income
+account2 expenses:uncategorized
+
+# Categorization rules — matched top to bottom, last match wins
+
+if SALARY
+  account2 income:salary
+
+if GROCERY STORE
+  account2 expenses:food
+
+if RESTAURANT
+  account2 expenses:food
+
+if RENT PAYMENT
+  account2 expenses:rent
+
+if CREDIT CARD PAYMENT
+  account2 liabilities:credit
+
+if TRANSFER TO SAVINGS
+  account2 assets:bank:savings

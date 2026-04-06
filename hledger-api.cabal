@@ -28,6 +28,7 @@ library
       Api
       Api.Accounts
       Api.Convert
+      Api.Import
       Api.Reports
       Api.Swagger
       Api.Transactions
@@ -62,6 +63,7 @@ library
     , optparse-applicative >=0.18
     , scientific
     , servant >=0.20
+    , servant-multipart >=0.12
     , servant-openapi3 >=2.0
     , servant-server >=0.20
     , servant-swagger-ui >=0.3
@@ -98,6 +100,7 @@ executable hledger-api-exe
     , optparse-applicative >=0.18
     , scientific
     , servant >=0.20
+    , servant-multipart >=0.12
     , servant-openapi3 >=2.0
     , servant-server >=0.20
     , servant-swagger-ui >=0.3
@@ -135,6 +138,7 @@ test-suite hledger-api-test
     , optparse-applicative >=0.18
     , scientific
     , servant >=0.20
+    , servant-multipart >=0.12
     , servant-openapi3 >=2.0
     , servant-server >=0.20
     , servant-swagger-ui >=0.3

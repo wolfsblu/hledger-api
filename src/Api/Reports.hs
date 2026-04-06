@@ -44,7 +44,8 @@ handleBalanceSheet mDate mDepth = do
   today <- liftIO $ utctDay <$> getCurrentTime
   let asOfDate = fromMaybe today mDate
       maxDepth = fromMaybe 9999 mDepth
-      ledger = H.ledgerFromJournal H.Any journal
+      dateQuery = H.Date $ H.DateSpan Nothing (Just (H.Exact (succ asOfDate)))
+      ledger = H.ledgerFromJournal dateQuery journal
       accts = H.ledgerAccountNames ledger
 
       -- Filter accounts by type prefix
@@ -77,7 +78,8 @@ handleIncomeStatement mFrom mTo mDepth = do
       fromDate = fromMaybe (fromGregorian year 1 1) mFrom
       toDate = fromMaybe today mTo
       maxDepth = fromMaybe 9999 mDepth
-      ledger = H.ledgerFromJournal H.Any journal
+      dateQuery = H.Date $ H.DateSpan (Just (H.Exact fromDate)) (Just (H.Exact (succ toDate)))
+      ledger = H.ledgerFromJournal dateQuery journal
       accts = H.ledgerAccountNames ledger
 
       revenues = filterByPrefix "revenue" maxDepth accts ++
