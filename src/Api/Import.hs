@@ -1,5 +1,6 @@
 module Api.Import
   ( handleImportTransactions
+  , handleListImportRules
   ) where
 
 import Control.Exception (bracket, catch, try, SomeException)
@@ -26,6 +27,12 @@ import qualified Hledger as H
 import Api.Convert (toTransactionJSON)
 import Api.Types
 import App (AppM, AppConfig(..), AppEnv(..), getJournal, modifyJournal)
+
+-- | List available rule names from the configured rules directory
+handleListImportRules :: AppM [Text]
+handleListImportRules = do
+  rulesDir <- asks (configRulesDir . envConfig)
+  liftIO $ listAvailableRules rulesDir
 
 -- | Handle CSV import request
 handleImportTransactions

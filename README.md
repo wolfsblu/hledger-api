@@ -5,7 +5,7 @@ A JSON API server for [hledger](https://hledger.org) journal files, providing pr
 ## Features
 
 - **Accounts API** - List accounts, get account details, balances, and register (transaction history)
-- **Transactions API** - Query and filter transactions with pagination
+- **Transactions API** - Query, filter, create, and bulk-create transactions; import from CSV
 - **Reports API** - Balance sheet, income statement, and cash flow reports
 - **Meta API** - Version info, commodities, payees, and tags
 - **OpenAPI 3.0** - Auto-generated API documentation at `/openapi.json`
@@ -52,6 +52,9 @@ stack run
 - `GET /api/v1/transactions` - List transactions (with filtering & pagination)
 - `GET /api/v1/transactions/:index` - Get transaction by index
 - `POST /api/v1/transactions` - Post a new transaction
+- `POST /api/v1/transactions/bulk` - Post multiple transactions atomically
+- `GET /api/v1/transactions/import/rules` - List available CSV import rule names
+- `POST /api/v1/transactions/import/:rules` - Import transactions from a CSV file
 
 ### Reports
 - `GET /api/v1/reports/balance-sheet` - Balance sheet report

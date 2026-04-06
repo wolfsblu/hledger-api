@@ -87,6 +87,11 @@ data TransactionsAPI mode = TransactionsAPI
       ReqBody '[JSON] CreateTransactionRequest :>
       PostCreated '[JSON] (Headers '[Header "Location" Text] TransactionJSON)
 
+  , listImportRules :: mode :-
+      "import" :>
+      "rules" :>
+      Get '[JSON] [Text]
+
   , importTransactions :: mode :-
       "import" :>
       Capture "rules" Text :>

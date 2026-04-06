@@ -22,7 +22,7 @@ import qualified Hledger as H
 
 import Api (TransactionsAPI(..))
 import Api.Convert
-import Api.Import (handleImportTransactions)
+import Api.Import (handleImportTransactions, handleListImportRules)
 import Api.Types
 import App (AppM, AppEnv(..), AppConfig(..), getJournal, modifyJournal)
 
@@ -32,6 +32,7 @@ transactionsHandlers = TransactionsAPI
   { listTransactions        = handleListTransactions
   , getTransaction          = handleGetTransaction
   , createTransaction       = handleCreateTransaction
+  , listImportRules         = handleListImportRules
   , importTransactions      = handleImportTransactions
   , bulkCreateTransactions  = handleBulkCreateTransactions
   }
