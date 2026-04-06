@@ -2,8 +2,6 @@
 
 module Api.Transactions
   ( transactionsHandlers
-  , toTransactionJSON
-  , toPostingJSON
   ) where
 
 import Control.Exception (try, SomeException)
@@ -25,6 +23,7 @@ import qualified Hledger as H
 
 import Api (TransactionsAPI(..))
 import Api.Convert
+import Api.Import (handleImportTransactions)
 import Api.Types
 import App (AppM, AppEnv(..), AppConfig(..), getJournal, modifyJournal)
 
@@ -34,7 +33,7 @@ transactionsHandlers = TransactionsAPI
   { listTransactions   = handleListTransactions
   , getTransaction     = handleGetTransaction
   , createTransaction  = handleCreateTransaction
-  , importTransactions = \_ _ -> throwError err501
+  , importTransactions = handleImportTransactions
   }
 
 -- | List transactions with optional filters
@@ -94,28 +93,6 @@ applyFilters mFrom mTo mAccount mDesc = filter matches
     matchesDesc desc txn =
       T.toLower desc `T.isInfixOf` T.toLower (H.tdescription txn)
 
--- | Convert hledger Transaction to JSON format
-toTransactionJSON :: Int -> H.Transaction -> TransactionJSON
-toTransactionJSON idx txn = TransactionJSON
-  { txnIndex       = idx
-  , txnDate        = H.tdate txn
-  , txnDate2       = H.tdate2 txn
-  , txnStatus      = toStatusJSON $ H.tstatus txn
-  , txnCode        = H.tcode txn
-  , txnDescription = H.tdescription txn
-  , txnComment     = H.tcomment txn
-  , txnTags        = H.ttags txn
-  , txnPostings    = map toPostingJSON $ H.tpostings txn
-  }
-
--- | Convert posting to JSON format
-toPostingJSON :: H.Posting -> PostingJSON
-toPostingJSON p = PostingJSON
-  { postingAccount = H.paccount p
-  , postingAmount  = mixedAmountToJSON $ H.pamount p
-  , postingStatus  = toStatusJSON $ H.pstatus p
-  }
-
 -- | Create a new transaction and append it to the journal file
 handleCreateTransaction
   :: CreateTransactionRequest
@@ -145,11 +122,11 @@ handleCreateTransaction req = do
   -- 2. CONVERT
   journal <- getJournal
   let rawTxn = fromCreateTransaction req
-  
+
   -- Pass the transaction to hledger's balancing engine
   let opts = H.defbalancingopts{H.infer_balancing_costs_ = True}
   balancedTxn <- case H.balanceTransaction opts rawTxn of
-    Left err -> 
+    Left err ->
       throwError err400 { errBody = "Cannot balance transaction: " <> encode (show err) }
     Right t -> pure t
 

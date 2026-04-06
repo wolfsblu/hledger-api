@@ -9,6 +9,9 @@ module Api.Convert
   , fromMixedAmountJSON
   , fromCreatePosting
   , fromCreateTransaction
+    -- * Transaction conversions
+  , toTransactionJSON
+  , toPostingJSON
     -- * Hledger helpers
   , ledgerAccountBalance
   , toStatusJSON
@@ -84,4 +87,26 @@ fromCreateTransaction req = H.nulltransaction
   , H.tdescription = ctDescription req
   , H.tcomment     = fromMaybe "" (ctComment req)
   , H.tpostings    = map fromCreatePosting (ctPostings req)
+  }
+
+-- | Convert hledger Transaction to JSON format
+toTransactionJSON :: Int -> H.Transaction -> TransactionJSON
+toTransactionJSON idx txn = TransactionJSON
+  { txnIndex       = idx
+  , txnDate        = H.tdate txn
+  , txnDate2       = H.tdate2 txn
+  , txnStatus      = toStatusJSON $ H.tstatus txn
+  , txnCode        = H.tcode txn
+  , txnDescription = H.tdescription txn
+  , txnComment     = H.tcomment txn
+  , txnTags        = H.ttags txn
+  , txnPostings    = map toPostingJSON $ H.tpostings txn
+  }
+
+-- | Convert hledger Posting to JSON format
+toPostingJSON :: H.Posting -> PostingJSON
+toPostingJSON p = PostingJSON
+  { postingAccount = H.paccount p
+  , postingAmount  = mixedAmountToJSON $ H.pamount p
+  , postingStatus  = toStatusJSON $ H.pstatus p
   }

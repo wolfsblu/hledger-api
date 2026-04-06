@@ -23,7 +23,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Hledger as H
 
-import Api.Transactions (toTransactionJSON)
+import Api.Convert (toTransactionJSON)
 import Api.Types
 import App (AppM, AppConfig(..), AppEnv(..), getJournal, modifyJournal)
 

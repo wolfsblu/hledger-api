@@ -13,6 +13,7 @@ import Data.IORef (newIORef)
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Middleware.Cors
 import Servant
+import Servant.Multipart (MultipartOptions, Mem, defaultMultipartOptions)
 import Servant.Server.Generic (AsServerT)
 import Servant.Swagger.UI (swaggerSchemaUIServerT)
 
@@ -42,7 +43,15 @@ runServer config = do
 
 -- | Create the WAI application
 mkApp :: AppEnv -> Application
-mkApp env = cors (const $ Just corsPolicy) $ serve (Proxy :: Proxy API) (hoistServer (Proxy :: Proxy API) (nt env) server)
+mkApp env = cors (const $ Just corsPolicy) $
+  serveWithContext
+    (Proxy :: Proxy API)
+    (defaultMultipartOptions (Proxy :: Proxy Mem) :. EmptyContext)
+    (hoistServerWithContext
+      (Proxy :: Proxy API)
+      (Proxy :: Proxy '[MultipartOptions Mem])
+      (nt env)
+      server)
   where
     nt :: AppEnv -> AppM a -> Handler a
     nt e action = Handler $ ExceptT $ try (runAppM e action)
