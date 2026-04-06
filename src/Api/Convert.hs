@@ -19,6 +19,7 @@ module Api.Convert
 
 import Data.List (find)
 import Data.Maybe (fromMaybe)
+import qualified Data.Text as T
 import qualified Hledger as H
 
 import Api.Types
@@ -31,8 +32,11 @@ amountToJSON a = AmountJSON
   }
 
 -- | Convert hledger MixedAmount to JSON format
+-- Filters out null amounts (empty commodity, zero quantity) that hledger
+-- returns for empty MixedAmounts.
 mixedAmountToJSON :: H.MixedAmount -> MixedAmountJSON
-mixedAmountToJSON ma = MixedAmountJSON $ map amountToJSON $ H.amounts ma
+mixedAmountToJSON ma = MixedAmountJSON $ filter nonNull $ map amountToJSON $ H.amounts ma
+  where nonNull a = not (T.null (amountCommodity a))
 
 -- | Get the balance of an account in a ledger
 --
