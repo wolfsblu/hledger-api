@@ -90,6 +90,7 @@ data TransactionsAPI mode = TransactionsAPI
   , importTransactions :: mode :-
       "import" :>
       Capture "rules" Text :>
+      QueryParam "dryRun" Bool :>
       MultipartForm Mem (MultipartData Mem) :>
       Post '[JSON] ImportResponse
   } deriving Generic

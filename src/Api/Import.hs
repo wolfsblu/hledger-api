@@ -4,6 +4,7 @@ module Api.Import
 
 import Control.Exception (bracket, catch, try, SomeException)
 import Control.Monad (unless)
+import Data.Maybe (fromMaybe)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans.Except (runExceptT)
@@ -29,9 +30,11 @@ import App (AppM, AppConfig(..), AppEnv(..), getJournal, modifyJournal)
 -- | Handle CSV import request
 handleImportTransactions
   :: Text               -- ^ rules name (e.g. "bank-checking")
+  -> Maybe Bool         -- ^ dryRun: parse and deduplicate but skip writing
   -> MultipartData Mem  -- ^ multipart upload
   -> AppM ImportResponse
-handleImportTransactions rulesName multipartData = do
+handleImportTransactions rulesName mDryRun multipartData = do
+  let isDryRun = fromMaybe False mDryRun
 
   -- 1. Extract CSV bytes from the "file" field
   let fileList = files multipartData
@@ -81,18 +84,17 @@ handleImportTransactions rulesName multipartData = do
         (\t -> txnFingerprint t `Set.notMember` existingFps)
         (H.jtxns csvJournal)
 
-  -- 5. Append new transactions to journal file
-  journalPath <- asks (configJournalPath . envConfig)
-  let txnTexts = foldMap (\t -> "\n" <> H.showTransaction t) toImport
-  writeResult <- liftIO $ try @SomeException $
-    appendFile journalPath (T.unpack txnTexts)
-  case writeResult of
-    Left ex ->
-      throwError err500 { errBody = "Failed to write to journal: " <> Aeson.encode (show ex) }
-    Right () -> pure ()
-
-  -- 6. Update in-memory journal
-  modifyJournal (\j -> j { H.jtxns = H.jtxns j ++ toImport })
+  -- 5 & 6. Write to disk and update in-memory journal (skipped in dry-run mode)
+  unless isDryRun $ do
+    journalPath <- asks (configJournalPath . envConfig)
+    let txnTexts = foldMap (\t -> "\n" <> H.showTransaction t) toImport
+    writeResult <- liftIO $ try @SomeException $
+      appendFile journalPath (T.unpack txnTexts)
+    case writeResult of
+      Left ex ->
+        throwError err500 { errBody = "Failed to write to journal: " <> Aeson.encode (show ex) }
+      Right () -> pure ()
+    modifyJournal (\j -> j { H.jtxns = H.jtxns j ++ toImport })
 
   -- 7. Build and return response
   let startIdx = length (H.jtxns journal)
@@ -107,7 +109,7 @@ handleImportTransactions rulesName multipartData = do
 listAvailableRules :: FilePath -> IO [Text]
 listAvailableRules dir = do
   entries <- listDirectory dir `catch` \(_ :: SomeException) -> return []
-  return $ map (T.pack . takeBaseName) $ filter (\f -> takeExtension f == ".rules") entries
+  return $ map (T.pack . takeBaseName . takeBaseName) $ filter (\f -> takeExtension f == ".rules") entries
 
 -- | Write bytes to a temp file, run an action with the path, then delete the file
 withTempCsvFile :: LBS.ByteString -> (FilePath -> IO a) -> IO a
