@@ -131,6 +131,7 @@ test-suite hledger-api-test
     , filepath
     , hledger-api
     , hledger-lib >=1.43
+    , hspec >=2.0
     , insert-ordered-containers
     , lens
     , mtl

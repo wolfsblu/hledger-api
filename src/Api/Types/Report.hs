@@ -2,6 +2,8 @@ module Api.Types.Report
   ( BalanceSheetReport(..)
   , IncomeStatementReport(..)
   , CashFlowReport(..)
+  , NetWorthReport(..)
+  , NetWorthDataPoint(..)
   , ReportSection(..)
   , ReportRow(..)
   ) where
@@ -132,6 +134,57 @@ instance ToSchema IncomeStatementReport where
           , ("revenues", sectionRef)
           , ("expenses", sectionRef)
           , ("netIncome", mixedRef)
+          ]
+
+-- | Single data point in a net worth time series
+data NetWorthDataPoint = NetWorthDataPoint
+  { nwpDate     :: Day
+  , nwpNetWorth :: MixedAmountJSON
+  } deriving (Show, Eq, Generic)
+
+instance ToJSON NetWorthDataPoint where
+  toJSON p = object
+    [ "date"     .= nwpDate p
+    , "netWorth" .= nwpNetWorth p
+    ]
+
+instance ToSchema NetWorthDataPoint where
+  declareNamedSchema _ = do
+    mixedRef <- declareSchemaRef (Proxy :: Proxy MixedAmountJSON)
+    return $ NamedSchema (Just "NetWorthDataPoint") $ mempty
+      & type_ ?~ OpenApiObject
+      & properties .~ IOHM.fromList
+          [ ("date",     Inline $ mempty & type_ ?~ OpenApiString & format ?~ "date")
+          , ("netWorth", mixedRef)
+          ]
+
+-- | Net worth time series report
+data NetWorthReport = NetWorthReport
+  { nwFrom       :: Day
+  , nwTo         :: Day
+  , nwInterval   :: Text
+  , nwDataPoints :: [NetWorthDataPoint]
+  } deriving (Show, Eq, Generic)
+
+instance ToJSON NetWorthReport where
+  toJSON r = object
+    [ "from"       .= nwFrom r
+    , "to"         .= nwTo r
+    , "interval"   .= nwInterval r
+    , "dataPoints" .= nwDataPoints r
+    ]
+
+instance ToSchema NetWorthReport where
+  declareNamedSchema _ = do
+    pointRef <- declareSchemaRef (Proxy :: Proxy NetWorthDataPoint)
+    return $ NamedSchema (Just "NetWorthReport") $ mempty
+      & type_ ?~ OpenApiObject
+      & properties .~ IOHM.fromList
+          [ ("from",       Inline $ mempty & type_ ?~ OpenApiString & format ?~ "date")
+          , ("to",         Inline $ mempty & type_ ?~ OpenApiString & format ?~ "date")
+          , ("interval",   Inline $ mempty & type_ ?~ OpenApiString)
+          , ("dataPoints", Inline $ mempty & type_ ?~ OpenApiArray
+                                           & items ?~ OpenApiItemsObject pointRef)
           ]
 
 -- | Cash flow report

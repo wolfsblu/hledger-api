@@ -125,6 +125,13 @@ data ReportsAPI mode = ReportsAPI
       QueryParam "from" Day :>
       QueryParam "to" Day :>
       Get '[JSON] CashFlowReport
+
+  , getNetWorth :: mode :-
+      "net-worth" :>
+      QueryParam "from" Day :>
+      QueryParam "to" Day :>
+      QueryParam "interval" Text :>
+      Get '[JSON] NetWorthReport
   } deriving Generic
 
 -- | Metadata API

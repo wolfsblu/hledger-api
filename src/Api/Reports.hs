@@ -1,6 +1,7 @@
 module Api.Reports
   ( reportsHandlers
   , metaHandlers
+  , periodEndDates
   ) where
 
 import Control.Monad.IO.Class (liftIO)
@@ -8,7 +9,7 @@ import Data.List (nub, partition, sort)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Time (Day, UTCTime(..), getCurrentTime)
-import Data.Time.Calendar (toGregorian, fromGregorian)
+import Data.Time.Calendar (toGregorian, fromGregorian, addDays, gregorianMonthLength)
 import Servant.Server.Generic (AsServerT)
 
 import qualified Data.Set as Set
@@ -26,6 +27,7 @@ reportsHandlers = ReportsAPI
   { getBalanceSheet    = handleBalanceSheet
   , getIncomeStatement = handleIncomeStatement
   , getCashFlow        = handleCashFlow
+  , getNetWorth        = handleNetWorth
   }
 
 -- | Handlers for the meta API
@@ -156,6 +158,54 @@ handleTags = do
   let txns = H.jtxns journal
       allTags = concatMap (map fst . H.ttags) txns
   return $ nub $ sort allTags
+
+-- | Get net worth time series
+handleNetWorth :: Maybe Day -> Maybe Day -> Maybe Text -> AppM NetWorthReport
+handleNetWorth mFrom mTo mInterval = do
+  journal <- getJournal
+  today <- liftIO $ utctDay <$> getCurrentTime
+  let (year, _, _) = toGregorian today
+      fromDate = fromMaybe (fromGregorian year 1 1) mFrom
+      toDate   = fromMaybe today mTo
+      interval = fromMaybe "monthly" mInterval
+      dates    = periodEndDates fromDate toDate interval
+      points   = map (netWorthAtDate journal) dates
+  return NetWorthReport
+    { nwFrom       = fromDate
+    , nwTo         = toDate
+    , nwInterval   = interval
+    , nwDataPoints = points
+    }
+  where
+    netWorthAtDate journal date =
+      let dateQuery    = H.Date $ H.DateSpan Nothing (Just (H.Exact (succ date)))
+          ledger       = H.ledgerFromJournal dateQuery journal
+          accts        = H.ledgerAccountNames ledger
+          assets       = filterByPrefix "assets" 9999 accts
+          liabilities  = filterByPrefix "liabilities" 9999 accts
+          assetSec     = buildSection "Assets" ledger assets
+          liabSec      = buildSection "Liabilities" ledger liabilities
+          netWorth     = addAmounts (sectionTotal assetSec) (sectionTotal liabSec)
+      in NetWorthDataPoint { nwpDate = date, nwpNetWorth = netWorth }
+
+-- | Generate period-end dates between two dates at the given interval.
+-- Monthly: last day of each month in the range.
+-- Weekly:  every 7th day starting from from+6.
+-- Daily:   every day from `from` to `to`.
+periodEndDates :: Day -> Day -> Text -> [Day]
+periodEndDates from to interval = case interval of
+  "weekly"  -> takeWhile (<= to) $ map (\i -> addDays (i * 7 + 6) from) [0..]
+  "daily"   -> [from .. to]
+  _         -> monthlyEnds
+  where
+    (y0, m0, _) = toGregorian from
+    monthlyEnds = go y0 m0
+    go y m
+      | endDate > to = []
+      | otherwise    = endDate : go y' m'
+      where
+        endDate  = fromGregorian y m (gregorianMonthLength y m)
+        (y', m') = if m == 12 then (y + 1, 1) else (y, m + 1)
 
 -- Helper functions
 

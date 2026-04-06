@@ -84,3 +84,5 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - hledger-api
+    - hspec >= 2.0
+    - time
