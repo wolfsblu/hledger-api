@@ -4,6 +4,7 @@ module Api.Types.Transaction
   , TransactionDetail
   , CreatePostingRequest(..)
   , CreateTransactionRequest(..)
+  , ImportResponse(..)
   ) where
 
 import Control.Lens hiding ((.=))
@@ -160,3 +161,30 @@ instance ToSchema CreateTransactionRequest where
                                             & items ?~ OpenApiItemsObject postingRef)
           ]
       & required .~ ["date", "description", "postings"]
+
+-- | Response body for the CSV import endpoint
+data ImportResponse = ImportResponse
+  { importedCount :: Int
+  , skippedCount  :: Int
+  , importedTxns  :: [TransactionJSON]
+  } deriving (Show, Eq, Generic)
+
+instance ToJSON ImportResponse where
+  toJSON r = object
+    [ "imported"     .= importedCount r
+    , "skipped"      .= skippedCount r
+    , "transactions" .= importedTxns r
+    ]
+
+instance ToSchema ImportResponse where
+  declareNamedSchema _ = do
+    txnRef <- declareSchemaRef (Proxy :: Proxy TransactionJSON)
+    return $ NamedSchema (Just "ImportResponse") $ mempty
+      & type_ ?~ OpenApiObject
+      & properties .~ IOHM.fromList
+          [ ("imported",     Inline $ mempty & type_ ?~ OpenApiInteger)
+          , ("skipped",      Inline $ mempty & type_ ?~ OpenApiInteger)
+          , ("transactions", Inline $ mempty & type_ ?~ OpenApiArray
+                                             & items ?~ OpenApiItemsObject txnRef)
+          ]
+      & required .~ ["imported", "skipped", "transactions"]
