@@ -12,15 +12,14 @@ import Data.Text (Text)
 import Data.Time (Day)
 import Servant
 import Servant.Multipart
-import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
-import System.FilePath ((</>))
+import System.Directory (doesFileExist, getTemporaryDirectory, listDirectory, removeFile)
+import System.FilePath ((</>), takeBaseName, takeExtension)
 import System.IO (hClose, openTempFile)
 
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Set as Set
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
 import qualified Hledger as H
 
 import Api.Convert (toTransactionJSON)
@@ -37,7 +36,11 @@ handleImportTransactions rulesName multipartData = do
   -- 1. Extract CSV bytes from the "file" field
   let fileList = files multipartData
   fd <- case filter (\f -> fdInputName f == "file") fileList of
-    []    -> throwError err400 { errBody = "Missing 'file' field in multipart upload" }
+    []    -> throwError err400
+               { errBody = Aeson.encode $ Aeson.object
+                   [ "error" Aeson..= ("Missing 'file' field in multipart upload" :: Text) ]
+               , errHeaders = [("Content-Type", "application/json")]
+               }
     (f:_) -> pure f
   let csvBytes = fdPayload fd
 
@@ -45,9 +48,16 @@ handleImportTransactions rulesName multipartData = do
   rulesDir <- asks (configRulesDir . envConfig)
   let rulesPath = rulesDir </> T.unpack rulesName <> ".csv.rules"
   rulesExists <- liftIO $ doesFileExist rulesPath
-  unless rulesExists $
+  unless rulesExists $ do
+    available <- liftIO $ listAvailableRules rulesDir
     throwError err400
-      { errBody = "Rules file not found: " <> LBS.fromStrict (TE.encodeUtf8 (T.pack rulesPath)) }
+      { errBody = Aeson.encode $ Aeson.object
+          [ "error"     Aeson..= ("Rules file not found: " <> rulesName :: Text)
+          , "rulesDir"  Aeson..= T.pack rulesDir
+          , "available" Aeson..= available
+          ]
+      , errHeaders = [("Content-Type", "application/json")]
+      }
 
   -- 3. Write CSV bytes to a temp file, parse with hledger, then clean up
   let opts = H.definputopts { H.mrules_file_ = Just rulesPath }
@@ -56,7 +66,12 @@ handleImportTransactions rulesName multipartData = do
 
   csvJournal <- case parseResult of
     Left err -> throwError err400
-      { errBody = "CSV parse error: " <> Aeson.encode (show err) }
+      { errBody = Aeson.encode $ Aeson.object
+          [ "error"   Aeson..= ("CSV parse error" :: Text)
+          , "details" Aeson..= err
+          ]
+      , errHeaders = [("Content-Type", "application/json")]
+      }
     Right j  -> pure j
 
   -- 4. Deduplicate: skip any transaction already in the journal
@@ -87,6 +102,12 @@ handleImportTransactions rulesName multipartData = do
     , skippedCount  = length skipped
     , importedTxns  = indexed
     }
+
+-- | List rule names (without extension) available in the given directory
+listAvailableRules :: FilePath -> IO [Text]
+listAvailableRules dir = do
+  entries <- listDirectory dir `catch` \(_ :: SomeException) -> return []
+  return $ map (T.pack . takeBaseName) $ filter (\f -> takeExtension f == ".rules") entries
 
 -- | Write bytes to a temp file, run an action with the path, then delete the file
 withTempCsvFile :: LBS.ByteString -> (FilePath -> IO a) -> IO a
