@@ -166,7 +166,7 @@ handleNetWorth mFrom mTo mInterval = do
   today <- liftIO $ utctDay <$> getCurrentTime
   let (year, _, _) = toGregorian today
       fromDate = fromMaybe (fromGregorian year 1 1) mFrom
-      toDate   = fromMaybe today mTo
+      toDate   = min (fromMaybe today mTo) today
       interval = fromMaybe "monthly" mInterval
       dates    = periodEndDates fromDate toDate interval
       points   = map (netWorthAtDate journal) dates
