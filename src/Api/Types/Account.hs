@@ -1,5 +1,5 @@
 module Api.Types.Account
-  ( AccountInfo(..)
+  ( AccountTree(..)
   , AccountDetail(..)
   , BalanceReport(..)
   , BalanceItem(..)
@@ -19,40 +19,39 @@ import qualified Data.HashMap.Strict.InsOrd as IOHM
 
 import Api.Types.Common
 
--- | Account summary info
-data AccountInfo = AccountInfo
-  { accountName       :: Text
-  , accountFullName   :: Text
-  , accountType       :: Maybe Text
-  , accountBalance    :: MixedAmountJSON
-  , accountSubCount   :: Int
-  , accountDepth      :: Int
+-- | Account tree node (recursive)
+data AccountTree = AccountTree
+  { treeName     :: Text
+  , treeFullName :: Text
+  , treeType     :: Maybe Text
+  , treeBalance  :: MixedAmountJSON
+  , treeChildren :: [AccountTree]
   } deriving (Show, Eq, Generic)
 
-instance ToJSON AccountInfo where
+instance ToJSON AccountTree where
   toJSON a = object
-    [ "name"        .= accountName a
-    , "fullName"    .= accountFullName a
-    , "type"        .= accountType a
-    , "balance"     .= accountBalance a
-    , "subAccounts" .= accountSubCount a
-    , "depth"       .= accountDepth a
+    [ "name"     .= treeName a
+    , "fullName" .= treeFullName a
+    , "type"     .= treeType a
+    , "balance"  .= treeBalance a
+    , "children" .= treeChildren a
     ]
 
-instance ToSchema AccountInfo where
+instance ToSchema AccountTree where
   declareNamedSchema _ = do
     mixedRef <- declareSchemaRef (Proxy :: Proxy MixedAmountJSON)
-    return $ NamedSchema (Just "AccountInfo") $ mempty
+    let selfRef = Ref (Reference "AccountTree")
+    return $ NamedSchema (Just "AccountTree") $ mempty
       & type_ ?~ OpenApiObject
       & properties .~ IOHM.fromList
           [ ("name", Inline $ mempty & type_ ?~ OpenApiString)
           , ("fullName", Inline $ mempty & type_ ?~ OpenApiString)
           , ("type", Inline $ mempty & type_ ?~ OpenApiString)
           , ("balance", mixedRef)
-          , ("subAccounts", Inline $ mempty & type_ ?~ OpenApiInteger)
-          , ("depth", Inline $ mempty & type_ ?~ OpenApiInteger)
+          , ("children", Inline $ mempty & type_ ?~ OpenApiArray
+                                         & items ?~ OpenApiItemsObject selfRef)
           ]
-      & required .~ ["name", "fullName", "balance", "subAccounts", "depth"]
+      & required .~ ["name", "fullName", "balance", "children"]
 
 -- | Detailed account info
 data AccountDetail = AccountDetail

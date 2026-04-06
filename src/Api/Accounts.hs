@@ -10,6 +10,7 @@ import Data.Time (Day, UTCTime(..), getCurrentTime)
 import Servant
 import Servant.Server.Generic (AsServerT)
 
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Hledger as H
 
@@ -27,17 +28,18 @@ accountsHandlers = AccountsAPI
   , getAccountRegister = handleGetAccountRegister
   }
 
--- | List all accounts
-handleListAccounts :: Maybe Int -> Maybe Text -> AppM [AccountInfo]
+-- | List all accounts as a nested tree
+handleListAccounts :: Maybe Int -> Maybe Text -> AppM [AccountTree]
 handleListAccounts mDepth _mType = do
   journal <- getJournal
-  let accts = H.journalAccountNames journal
-      maxDepth = fromMaybe 9999 mDepth
+  let maxDepth = fromMaybe 9999 mDepth
       ledger = H.ledgerFromJournal H.Any journal
-      filtered = filter (matchesDepth maxDepth) accts
-  return $ map (toAccountInfo ledger) filtered
-  where
-    matchesDepth maxD name = H.accountNameLevel name <= maxD
+      allAccts = H.journalAccountNames journal
+      filtered = filter (\n -> H.accountNameLevel n <= maxDepth) allAccts
+      filteredSet = Set.fromList filtered
+      roots = filter (\n -> H.accountNameLevel n == 1 ||
+                            not (H.parentAccountName n `Set.member` filteredSet)) filtered
+  return $ map (buildAccountTree ledger filteredSet) roots
 
 -- | Get account details
 handleGetAccount :: Text -> AppM AccountDetail
@@ -115,20 +117,17 @@ handleGetAccountRegister name mFrom mTo mLimit mOffset = do
       let d = H.tdate txn
       in d >= from && d <= to
 
--- | Convert hledger account to API AccountInfo
-toAccountInfo :: H.Ledger -> H.AccountName -> AccountInfo
-toAccountInfo ledger name =
-  AccountInfo
-    { accountName     = H.accountLeafName name
-    , accountFullName = name
-    , accountType     = Nothing  -- Would need account type from declarations
-    , accountBalance  = mixedAmountToJSON $ ledgerAccountBalance ledger name
-    , accountSubCount = length $ filter (isDirectChild name) (H.ledgerAccountNames ledger)
-    , accountDepth    = H.accountNameLevel name
+-- | Build a nested account tree node
+buildAccountTree :: H.Ledger -> Set.Set H.AccountName -> H.AccountName -> AccountTree
+buildAccountTree ledger allAccts name =
+  let children = sortOn id $ filter (\n -> H.parentAccountName n == name) (Set.toList allAccts)
+  in AccountTree
+    { treeName     = H.accountLeafName name
+    , treeFullName = name
+    , treeType     = Nothing
+    , treeBalance  = mixedAmountToJSON $ ledgerAccountBalance ledger name
+    , treeChildren = map (buildAccountTree ledger allAccts) children
     }
-  where
-    isDirectChild parent child =
-      H.parentAccountName child == parent
 
 -- | Convert a transaction to a register entry
 toRegisterEntry :: Text -> H.MixedAmount -> H.Transaction -> RegisterEntry
