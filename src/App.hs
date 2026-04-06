@@ -19,6 +19,7 @@ import Servant.Server (ServerError)
 -- | Application configuration
 data AppConfig = AppConfig
   { configJournalPath :: FilePath
+  , configRulesDir    :: FilePath
   , configPort        :: Int
   , configHost        :: String
   } deriving (Show, Eq)
@@ -27,6 +28,7 @@ data AppConfig = AppConfig
 defaultConfig :: AppConfig
 defaultConfig = AppConfig
   { configJournalPath = ""  -- Will be resolved from env/args
+  , configRulesDir    = ""
   , configPort        = 8080
   , configHost        = "127.0.0.1"
   }

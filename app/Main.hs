@@ -9,9 +9,10 @@ import Lib (runServer, AppConfig(..))
 
 -- | Command line options
 data Options = Options
-  { optJournal :: Maybe FilePath
-  , optPort    :: Int
-  , optHost    :: String
+  { optJournal  :: Maybe FilePath
+  , optRulesDir :: FilePath
+  , optPort     :: Int
+  , optHost     :: String
   }
 
 -- | Parser for command line options
@@ -23,6 +24,14 @@ optionsParser = Options
      <> metavar "FILE"
      <> help "Path to hledger journal file (default: $LEDGER_FILE or ~/.hledger.journal)"
       ))
+  <*> strOption
+      ( long "rules-dir"
+     <> short 'r'
+     <> metavar "DIR"
+     <> value "rules"
+     <> showDefault
+     <> help "Directory containing .csv.rules files (default: rules/)"
+      )
   <*> option auto
       ( long "port"
      <> short 'p'
@@ -65,6 +74,7 @@ main = do
   journalPath <- resolveJournalPath (optJournal opts)
   let config = AppConfig
         { configJournalPath = journalPath
+        , configRulesDir    = optRulesDir opts
         , configPort        = optPort opts
         , configHost        = optHost opts
         }
