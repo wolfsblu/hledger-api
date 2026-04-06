@@ -2,6 +2,8 @@
 
 module Api.Transactions
   ( transactionsHandlers
+  , toTransactionJSON
+  , toPostingJSON
   ) where
 
 import Control.Exception (try, SomeException)
@@ -29,9 +31,10 @@ import App (AppM, AppEnv(..), AppConfig(..), getJournal, modifyJournal)
 -- | Handlers for the transactions API
 transactionsHandlers :: TransactionsAPI (AsServerT AppM)
 transactionsHandlers = TransactionsAPI
-  { listTransactions  = handleListTransactions
-  , getTransaction    = handleGetTransaction
-  , createTransaction = handleCreateTransaction
+  { listTransactions   = handleListTransactions
+  , getTransaction     = handleGetTransaction
+  , createTransaction  = handleCreateTransaction
+  , importTransactions = \_ _ -> throwError err501
   }
 
 -- | List transactions with optional filters

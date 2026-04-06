@@ -19,6 +19,7 @@ import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Servant
+import Servant.Multipart (MultipartForm, Mem, MultipartData)
 import Servant.Swagger.UI (SwaggerSchemaUI)
 
 import Api.Types
@@ -85,6 +86,12 @@ data TransactionsAPI mode = TransactionsAPI
   , createTransaction :: mode :-
       ReqBody '[JSON] CreateTransactionRequest :>
       PostCreated '[JSON] (Headers '[Header "Location" Text] TransactionJSON)
+
+  , importTransactions :: mode :-
+      "import" :>
+      Capture "rules" Text :>
+      MultipartForm Mem (MultipartData Mem) :>
+      Post '[JSON] ImportResponse
   } deriving Generic
 
 -- | Reports API
