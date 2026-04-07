@@ -3,7 +3,7 @@ module Api.Accounts
   ) where
 
 import Control.Monad.IO.Class (liftIO)
-import Data.List (sortOn)
+import Data.List (nub, sortOn)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Time (Day, UTCTime(..), getCurrentTime)
@@ -29,17 +29,30 @@ accountsHandlers = AccountsAPI
   }
 
 -- | List all accounts as a nested tree
-handleListAccounts :: Maybe Int -> Maybe Text -> AppM [AccountTree]
-handleListAccounts mDepth _mType = do
+handleListAccounts :: Maybe Int -> Maybe Text -> Maybe Text -> AppM [AccountTree]
+handleListAccounts mDepth _mType mSearch = do
   journal <- getJournal
   let maxDepth = fromMaybe 9999 mDepth
       ledger = H.ledgerFromJournal H.Any journal
       allAccts = H.journalAccountNames journal
-      filtered = filter (\n -> H.accountNameLevel n <= maxDepth) allAccts
+      searched = case mSearch of
+        Nothing -> allAccts
+        Just q  -> let lq = T.toLower q
+                       matching = filter (\n -> lq `T.isInfixOf` T.toLower n) allAccts
+                   in nub $ concatMap accountWithAncestors matching
+      filtered = filter (\n -> H.accountNameLevel n <= maxDepth) searched
       filteredSet = Set.fromList filtered
       roots = filter (\n -> H.accountNameLevel n == 1 ||
                             not (H.parentAccountName n `Set.member` filteredSet)) filtered
   return $ map (buildAccountTree ledger filteredSet) roots
+
+-- | Expand an account name into itself plus all ancestor accounts
+accountWithAncestors :: H.AccountName -> [H.AccountName]
+accountWithAncestors name =
+  let parent = H.parentAccountName name
+  in if T.null parent
+     then [name]
+     else name : accountWithAncestors parent
 
 -- | Get account details
 handleGetAccount :: Text -> AppM AccountDetail

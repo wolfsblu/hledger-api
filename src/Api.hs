@@ -45,6 +45,7 @@ data AccountsAPI mode = AccountsAPI
   { listAccounts :: mode :-
       QueryParam "depth" Int :>
       QueryParam "type" Text :>
+      QueryParam "search" Text :>
       Get '[JSON] [AccountTree]
 
   , getAccount :: mode :-
