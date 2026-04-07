@@ -73,8 +73,13 @@ data TransactionsAPI mode = TransactionsAPI
   { listTransactions :: mode :-
       QueryParam "from" Day :>
       QueryParam "to" Day :>
-      QueryParam "account" Text :>
+      QueryParams "account" Text :>
       QueryParam "description" Text :>
+      QueryParams "status" Text :>
+      QueryParams "tag" Text :>
+      QueryParam "minAmount" Double :>
+      QueryParam "maxAmount" Double :>
+      QueryParam "sort" Text :>
       QueryParam "limit" Int :>
       QueryParam "offset" Int :>
       Get '[JSON] (PaginatedResponse TransactionJSON)

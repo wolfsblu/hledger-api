@@ -2,15 +2,19 @@
 
 module Api.Transactions
   ( transactionsHandlers
+  , applyFilters
+  , applySorting
   ) where
 
 import Control.Exception (try, SomeException)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Data.Aeson (encode)
-import Data.List (sortOn)
+import Data.List (sortBy)
 import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe)
+import Data.Ord (comparing)
+import Data.Scientific (Scientific, fromFloatDigits)
 import Data.Text (Text)
 import Data.Time (Day)
 import Servant
@@ -39,23 +43,37 @@ transactionsHandlers = TransactionsAPI
 
 -- | List transactions with optional filters
 handleListTransactions
-  :: Maybe Day      -- ^ from date
-  -> Maybe Day      -- ^ to date
-  -> Maybe Text     -- ^ account filter
-  -> Maybe Text     -- ^ description filter
-  -> Maybe Int      -- ^ limit
-  -> Maybe Int      -- ^ offset
+  :: Maybe Day        -- ^ from date
+  -> Maybe Day        -- ^ to date
+  -> [Text]           -- ^ account filters (OR)
+  -> Maybe Text       -- ^ description filter
+  -> [Text]           -- ^ status filters (OR)
+  -> [Text]           -- ^ tag filters (OR)
+  -> Maybe Double     -- ^ minAmount
+  -> Maybe Double     -- ^ maxAmount
+  -> Maybe Text       -- ^ sort spec
+  -> Maybe Int        -- ^ limit
+  -> Maybe Int        -- ^ offset
   -> AppM (PaginatedResponse TransactionJSON)
-handleListTransactions mFrom mTo mAccount mDesc mLimit mOffset = do
+handleListTransactions mFrom mTo accounts mDesc statuses tags mMinAmt mMaxAmt mSort mLimit mOffset = do
+  -- Parse and validate statuses
+  parsedStatuses <- mapM parseStatus statuses
+
+  -- Parse and validate sort spec
+  sortSpecs <- case mSort of
+    Nothing -> pure [SortSpec SortDate Asc]
+    Just s  -> case parseSortParam s of
+      Left err    -> throwError err400 { errBody = encode err }
+      Right specs -> pure specs
+
   journal <- getJournal
-  let fromDate = mFrom
-      toDate = mTo
-      limit = fromMaybe 100 mLimit
+  let limit = fromMaybe 100 mLimit
       offset = fromMaybe 0 mOffset
       txns = H.jtxns journal
-      -- Apply filters
-      filtered = applyFilters fromDate toDate mAccount mDesc txns
-      sorted = sortOn H.tdate filtered
+      minAmt = fmap fromFloatDigits mMinAmt
+      maxAmt = fmap fromFloatDigits mMaxAmt
+      filtered = applyFilters mFrom mTo accounts mDesc parsedStatuses tags minAmt maxAmt txns
+      sorted = applySorting sortSpecs filtered
       total = length sorted
       paged = take limit $ drop offset sorted
       indexed = zipWith toTransactionJSON [offset..] paged
@@ -70,29 +88,108 @@ handleListTransactions mFrom mTo mAccount mDesc mLimit mOffset = do
 handleGetTransaction :: Int -> AppM TransactionDetail
 handleGetTransaction idx = do
   journal <- getJournal
-  let txns = sortOn H.tdate $ H.jtxns journal
+  let txns = sortBy (comparing H.tdate) $ H.jtxns journal
   if idx >= 0 && idx < length txns
     then return $ toTransactionJSON idx (txns !! idx)
     else throwError err404 { errBody = "Transaction not found" }
 
+-- | Parse and validate a status text value
+parseStatus :: Text -> AppM H.Status
+parseStatus s = case T.toLower s of
+  "unmarked" -> pure H.Unmarked
+  "pending"  -> pure H.Pending
+  "cleared"  -> pure H.Cleared
+  _          -> throwError err400 { errBody = "Invalid status: must be unmarked, pending, or cleared" }
+
 -- | Apply filters to transaction list
 applyFilters
-  :: Maybe Day -> Maybe Day -> Maybe Text -> Maybe Text
+  :: Maybe Day -> Maybe Day -> [Text] -> Maybe Text
+  -> [H.Status] -> [Text] -> Maybe Scientific -> Maybe Scientific
   -> [H.Transaction] -> [H.Transaction]
-applyFilters mFrom mTo mAccount mDesc = filter matches
+applyFilters mFrom mTo accounts mDesc statuses tags mMinAmt mMaxAmt = filter matches
   where
     matches txn = all ($ txn)
       [ maybe (const True) (\d t -> H.tdate t >= d) mFrom
       , maybe (const True) (\d t -> H.tdate t <= d) mTo
-      , maybe (const True) matchesAccount mAccount
+      , matchesAccounts accounts
       , maybe (const True) matchesDesc mDesc
+      , matchesStatuses statuses
+      , matchesTags tags
+      , maybe (const True) matchesMinAmt mMinAmt
+      , maybe (const True) matchesMaxAmt mMaxAmt
       ]
 
-    matchesAccount acct txn =
-      any (\p -> acct `T.isInfixOf` H.paccount p) (H.tpostings txn)
+    matchesAccounts [] _ = True
+    matchesAccounts accts txn =
+      any (\acct -> any (\p -> acct `T.isInfixOf` H.paccount p) (H.tpostings txn)) accts
 
     matchesDesc desc txn =
       T.toLower desc `T.isInfixOf` T.toLower (H.tdescription txn)
+
+    matchesStatuses [] _ = True
+    matchesStatuses ss txn = H.tstatus txn `elem` ss
+
+    matchesTags [] _ = True
+    matchesTags ts txn = any (`matchesTag` txn) ts
+
+    matchesTag tag txn =
+      let (name, rest) = T.breakOn ":" tag
+          txnTags = H.ttags txn
+      in if T.null rest
+        then any (\(n, _) -> T.toLower n == T.toLower name) txnTags
+        else let value = T.drop 1 rest  -- drop the ':'
+             in any (\(n, v) -> T.toLower n == T.toLower name
+                             && T.toLower v == T.toLower value) txnTags
+
+    matchesMinAmt threshold txn =
+      any (anyAmountGe threshold) (H.tpostings txn)
+
+    matchesMaxAmt threshold txn =
+      any (anyAmountLe threshold) (H.tpostings txn)
+
+    anyAmountGe threshold p =
+      any (\a -> toScientific (H.aquantity a) >= threshold) (H.amounts (H.pamount p))
+
+    anyAmountLe threshold p =
+      any (\a -> toScientific (H.aquantity a) <= threshold) (H.amounts (H.pamount p))
+
+-- | Apply multi-field sorting to transactions.
+-- Uses stable sort (merge sort) applied from least-significant field first.
+applySorting :: [SortSpec] -> [H.Transaction] -> [H.Transaction]
+applySorting specs txns = foldl' applyOne txns (reverse specs)
+  where
+    applyOne ts (SortSpec field dir) =
+      let cmp = case dir of
+            Asc  -> comparing (sortKey field)
+            Desc -> flip (comparing (sortKey field))
+      in sortBy cmp ts
+
+    sortKey :: SortField -> H.Transaction -> SortKey
+    sortKey SortDate        txn = SKDay (H.tdate txn)
+    sortKey SortDescription txn = SKText (T.toLower (H.tdescription txn))
+    sortKey SortStatus      txn = SKInt (statusOrd (H.tstatus txn))
+    sortKey SortAmount      txn = SKScientific (maxAbsAmount txn)
+
+    statusOrd :: H.Status -> Int
+    statusOrd H.Unmarked = 0
+    statusOrd H.Pending  = 1
+    statusOrd H.Cleared  = 2
+
+    maxAbsAmount :: H.Transaction -> Scientific
+    maxAbsAmount txn =
+      let amounts = concatMap (H.amounts . H.pamount) (H.tpostings txn)
+          absAmounts = map (abs . toScientific . H.aquantity) amounts
+      in case absAmounts of
+        [] -> 0
+        xs -> maximum xs
+
+-- | Wrapper for sort keys supporting heterogeneous comparison
+data SortKey = SKDay Day | SKText Text | SKInt Int | SKScientific Scientific
+  deriving (Eq, Ord)
+
+-- | Convert hledger's Decimal quantity to Scientific
+toScientific :: H.Quantity -> Scientific
+toScientific = fromFloatDigits . (realToFrac :: H.Quantity -> Double)
 
 -- | Validate and balance a single CreateTransactionRequest.
 -- Returns either an error message or the balanced hledger Transaction.

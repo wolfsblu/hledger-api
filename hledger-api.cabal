@@ -37,6 +37,7 @@ library
       Api.Types.Common
       Api.Types.Meta
       Api.Types.Report
+      Api.Types.Sort
       Api.Types.Transaction
       App
       Journal

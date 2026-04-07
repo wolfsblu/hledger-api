@@ -18,10 +18,13 @@ module Api.Types
   , module Api.Types.Report
     -- * Meta Types
   , module Api.Types.Meta
+    -- * Sort Types
+  , module Api.Types.Sort
   ) where
 
 import Api.Types.Account
 import Api.Types.Common
 import Api.Types.Meta
 import Api.Types.Report
+import Api.Types.Sort
 import Api.Types.Transaction
