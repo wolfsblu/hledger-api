@@ -3,14 +3,14 @@ module Main (main) where
 import Options.Applicative
 import System.Environment (lookupEnv)
 import System.Directory (getHomeDirectory)
-import System.FilePath ((</>))
+import System.FilePath ((</>), takeDirectory)
 
 import Lib (runServer, AppConfig(..))
 
 -- | Command line options
 data Options = Options
   { optJournal  :: Maybe FilePath
-  , optRulesDir :: FilePath
+  , optRulesDir :: Maybe FilePath
   , optPort     :: Int
   , optHost     :: String
   }
@@ -24,14 +24,12 @@ optionsParser = Options
      <> metavar "FILE"
      <> help "Path to hledger journal file (default: $LEDGER_FILE or ~/.hledger.journal)"
       ))
-  <*> strOption
+  <*> optional (strOption
       ( long "rules-dir"
      <> short 'r'
      <> metavar "DIR"
-     <> value "rules"
-     <> showDefault
-     <> help "Directory containing .csv.rules files (default: rules/)"
-      )
+     <> help "Directory containing .csv.rules files (default: $RULES_DIR or journal file's parent directory)"
+      ))
   <*> option auto
       ( long "port"
      <> short 'p'
@@ -68,13 +66,23 @@ resolveJournalPath Nothing = do
       home <- getHomeDirectory
       return $ home </> ".hledger.journal"
 
+-- | Resolve rules directory from options, env var, or journal path default
+resolveRulesDir :: Maybe FilePath -> FilePath -> IO FilePath
+resolveRulesDir (Just dir) _           = return dir
+resolveRulesDir Nothing    journalPath = do
+  envDir <- lookupEnv "RULES_DIR"
+  case envDir of
+    Just dir -> return dir
+    Nothing  -> return (takeDirectory journalPath)
+
 main :: IO ()
 main = do
   opts <- execParser optsInfo
   journalPath <- resolveJournalPath (optJournal opts)
+  rulesDir    <- resolveRulesDir (optRulesDir opts) journalPath
   let config = AppConfig
         { configJournalPath = journalPath
-        , configRulesDir    = optRulesDir opts
+        , configRulesDir    = rulesDir
         , configPort        = optPort opts
         , configHost        = optHost opts
         }
